@@ -2,8 +2,6 @@
 # This file contains configuration flags to customize your site
 #
 
-theme: jekyll-theme-midnight
-
 # Name of your site (displayed in the header)
 name: Landmaster’s Musings
 
@@ -23,7 +21,7 @@ footer-links:
   email:
   facebook:
   flickr:
-  github: Landmaster/landmaster.github.io
+  github: Landmaster
   instagram:
   linkedin:
   pinterest:

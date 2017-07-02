@@ -1,15 +1,15 @@
 ---
 layout: page
-title: About
+title: About Landmaster
 permalink: /about/
 ---
 
-Some information about you!
+Landmaster is an avid programmer who writes mods for Minecraft, including his signature mod, [PlusTiC](http://github.com/Landmaster/PlusTiC), and other stuff.
 
 ### More Information
 
-A place to include any other types of information that you'd like to include about yourself.
+Landmaster participated in the USAJMO in 2016.
 
 ### Contact me
 
-[email@domain.com](mailto:email@domain.com)
+[python0429@gmail.com](mailto:python0429@gmail.com)
