@@ -178,12 +178,7 @@ function startup(readyEv) {
 		//} catch(err) { alert(err.message); }
 	};
 	
-	updateLatestMessages()
-	.then(function () {
-		requestAnimationFrame(function () {
-			messages.scrollTop = messages.scrollHeight;
-		});
-	});
+	updateLatestMessages();
 	
 	discordInstance.on('message', function (message) {
 		appendMessage(message);
@@ -334,6 +329,9 @@ function updateLatestMessages() {
 			for (var msg of msgColl.values()) {
 				prependMessage(msg);
 			}
+			requestAnimationFrame(function () {
+				messages.scrollTop = messages.scrollHeight;
+			});
 		});
 	}
 	messages.style.display = '';

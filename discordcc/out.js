@@ -13413,13 +13413,1683 @@ function hasOwnProperty(obj, prop) {
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./support/isBuffer":50,"_process":28,"inherits":49}],52:[function(require,module,exports){
+window.Buffer = require('buffer').Buffer;
+window.path = require('path');
+window.Discord = require('discord.js');
+window.mime = require('mime-types');
+
+if (!String.prototype.endsWith) {
+	String.prototype.endsWith = function(search, this_len) {
+		if (this_len === undefined || this_len > this.length) {
+			this_len = this.length;
+		}
+		return this.substring(this_len - search.length, this_len) === search;
+	};
+}
+
+var matchURL = /(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?/g;
+
+var loginBar = document.getElementById('login_bar');
+var messages = document.getElementById('messages');
+var channelMenu = document.getElementById('channel_menu');
+var selectServer = document.getElementById('select_server');
+var selectChannel = document.getElementById('select_channel');
+var okBtn = document.getElementById('ok_btn');
+var enterMsg = document.getElementById('enter_msg');
+var uploadBtn = document.getElementById('upload_btn');
+var sendBtn = document.getElementById('send_btn');
+
+var discordInstance;
+
+function updateLoginBar() {
+	if (localStorage.getItem('token') === null) {
+		loginBar.innerHTML = '<button type="button" onclick="promptLogin();">Login</button>';
+	} else {
+		loginBar.innerHTML = '';
+		
+		var menuIcon = document.createElement('img');
+		menuIcon.id = 'menu_icon';
+		menuIcon.src = 'mobile_menu_icon.svg';
+		menuIcon.onclick = function () {
+			openChannelMenu();
+		};
+		loginBar.appendChild(menuIcon);
+		
+		loginBar.appendChild(document.createTextNode('Logged in as '+discordInstance.user.username+' '));
+		
+		var logoutBtn = document.createElement('button');
+		logoutBtn.type = 'button';
+		logoutBtn.textContent = "Logout";
+		logoutBtn.onclick = function () {
+			discordInstance.destroy();
+		};
+		loginBar.appendChild(logoutBtn);
+	}
+}
+
+window.promptLogin = function promptLogin() {
+	var token = prompt("Enter code");
+	if (token === null) return;
+	localStorage.setItem('token', token);
+	tryLogin();
+}
+
+function tryLogin() {
+	var token = localStorage.getItem('token');
+	if (token === null) {
+		updateLoginBar();
+		return;
+	}
+	
+	discordInstance = new Discord.Client();
+	discordInstance.on('ready', function (readyEv) {
+		updateLoginBar();
+		
+		startup(readyEv);
+	});
+	discordInstance.on('disconnect', function (ev, code) {
+		localStorage.removeItem('token');
+		localStorage.removeItem('server_id');
+		localStorage.removeItem('channel_id');
+		updateLoginBar();
+		updateLatestMessages();
+		if (code === 0) {
+			tryLogin();
+		}
+	});
+	discordInstance.login(token)
+}
+
+function startup(readyEv) {
+	if (!discordInstance.channels.has(localStorage.getItem('channel_id'))) {
+		localStorage.removeItem('channel_id');
+	}
+	if (localStorage.getItem('server_id') === null || !discordInstance.guilds.has(localStorage.getItem('server_id'))) {
+		localStorage.removeItem('server_id');
+	}
+	
+	selectServer.onchange = function () {
+		localStorage.setItem('server_id', this.value);
+		localStorage.removeItem('channel_id', this.value);
+		updateSelectChannel();
+		updateLatestMessages();
+	};
+	selectChannel.onchange = function () {
+		localStorage.setItem('channel_id', this.value);
+		updateLatestMessages();
+	};
+	okBtn.onclick = function() {
+		closeChannelMenu();
+	};
+	
+	var lastInputTime = -Infinity;
+	
+	enterMsg.oninput = function () {
+		if (discordInstance && localStorage.getItem('token') !== null && localStorage.getItem('channel_id') !== null
+			&& ((new Date()).getTime() - lastInputTime) >= 1000) {
+			var channel = discordInstance.channels.get(localStorage.getItem('channel_id'));
+			channel.startTyping();
+			setTimeout(function() { channel.stopTyping(); }, 1000);
+			lastInputTime = (new Date()).getTime();
+		}
+	};
+	enterMsg.onkeypress = function (e) {
+		if (e.keyCode == 13) {
+			sendBtn.click();
+			return false;
+		}
+	};
+	
+	sendBtn.onclick = function () {
+		if (discordInstance && localStorage.getItem('token') !== null && localStorage.getItem('channel_id') !== null) {
+			discordInstance.channels
+				.get(localStorage.getItem('channel_id'))
+				.send(enterMsg.value);
+			enterMsg.value = '';
+		}
+	};
+	
+	uploadBtn.onclick = function () {
+		//alert('To nullify');
+		//try {
+		if (discordInstance && localStorage.getItem('token') !== null && localStorage.getItem('channel_id') !== null) {
+			/*
+			InstagramAssetsPicker.getMedia(
+				function (result) {
+					//alert('Un');
+					resolveLocalFileSystemURL('file://'+result.filePath, function (fileEntry) {
+						//alert('Deux');
+						fileEntry.file(function (file) {
+							//alert('Trois');
+							var reader = new FileReader();
+							reader.onloadend = function (e) {
+								//alert('Quatre');
+								//try {
+								var buf = Buffer.from(reader.result);
+								//alert('Buffer created: length = ' + buf.length);
+								var promise = discordInstance.channels.get(localStorage.getItem('channel_id')).send({
+									files: [{
+										attachment: buf,
+										name: path.basename(result.filePath)
+									}]
+								}).catch(function(err) { alert("Error: "+err.message); });
+								//} catch(err) { alert(err.message); }
+							};
+							reader.readAsArrayBuffer(file);
+						}, function(err) {  });
+					}, function(err) {  });
+				}
+			);
+			*/
+			
+			/*
+			var buf = Buffer.from('Teehee');
+			console.log(buf);
+			var promise = discordInstance.channels
+				.get(localStorage.getItem('channel_id')).send(new Discord.Attachment(buf, 'teehee_round_2.txt'))
+					.catch(function(err) { alert("Error: "+err.message); });
+			*/
+		}
+		//} catch(err) { alert(err.message); }
+	};
+	
+	updateLatestMessages();
+	
+	discordInstance.on('message', function (message) {
+		appendMessage(message);
+		if (message.author.id !== discordInstance.user.id) {
+			/*
+			Notification.requestPermission(function (permission) {
+				if (permission === 'granted') {
+					var notification = new Notification(message.author.username, {
+						body: message.content
+					});
+				}
+			});
+			*/
+		}
+	});
+}
+
+setInterval(function () {
+	if (messages.scrollTop < 20 && messages.children.length) {
+		if (localStorage.getItem('channel_id') !== null) {
+			discordInstance.channels.get(localStorage.getItem('channel_id')).fetchMessages({before: messages.children[0].dataset.id})
+			.then(function (msgColl) {
+				for (var msg of msgColl.values()) {
+					prependMessage(msg);
+				}
+			});
+		}
+	}
+}, 1000);
+
+function updateSelectServer() {
+	selectServer.innerHTML = '';
+	selectServer.appendChild(document.createElement('option'));
+	selectServer.children[0].selected = 'selected';
+	selectServer.children[0].disabled = 'disabled';
+	for (var guild of discordInstance.guilds.values()) {
+		var serverOption = document.createElement('option');
+		serverOption.value = guild.id;
+		serverOption.textContent = guild.name;
+		if (guild.id === localStorage.getItem('server_id')) {
+			serverOption.selected = 'selected';
+			selectServer.children[0].removeAttribute('selected');
+		}
+		selectServer.appendChild(serverOption);
+	}
+}
+
+function updateSelectChannel() {
+	selectChannel.innerHTML = '';
+	selectChannel.appendChild(document.createElement('option'));
+	selectChannel.children[0].selected = 'selected';
+	selectChannel.children[0].disabled = 'disabled';
+	if (localStorage.getItem('server_id') !== null && discordInstance.guilds.has(localStorage.getItem('server_id'))) {
+		for (var channel of discordInstance.guilds.get(localStorage.getItem('server_id')).channels.values()) {
+			if (['text', 'dm', 'group'].indexOf(channel.type) === -1) continue;
+			
+			var channelOption = document.createElement('option');
+			channelOption.value = channel.id;
+			channelOption.textContent = channel.name;
+			if (channel.id === localStorage.getItem('channel_id')) {
+				channelOption.selected = 'selected';
+				selectChannel.children[0].removeAttribute('selected');
+			}
+			selectChannel.appendChild(channelOption);
+		}
+	}
+}
+
+function openChannelMenu() {
+	updateSelectServer();
+	
+	updateSelectChannel();
+	
+	channelMenu.style.display = '';
+}
+
+function closeChannelMenu() {
+	channelMenu.style.display = 'none';
+}
+
+function createMessageElem(message) {
+	var msgContent = document.createElement('div');
+	msgContent.classList.add('message_content');
+	
+	msgContent.dataset.id = message.id;
+	
+	msgContent.textContent = " " + message.content;
+	
+	var authorSpan = document.createElement('span');
+	authorSpan.textContent = message.author.username;
+	authorSpan.classList.add('author');
+	
+	msgContent.insertBefore(authorSpan, msgContent.childNodes[0] || null);
+	
+	matchURL.lastIndex = 0;
+	msgContent.innerHTML = msgContent.innerHTML.replace(matchURL, '<a href="$&">$&</a>')
+	
+	for (var attachment of message.attachments.values()) {
+		msgContent.appendChild(document.createElement('br'));
+		
+		var attachmentElem;
+		var contentType = mime.lookup(attachment.filename);
+		if (contentType.startsWith('image')) {
+			attachmentElem = document.createElement('img');
+			attachmentElem.src = attachment.url;
+		} else if (contentType.startsWith('video')) {
+			attachmentElem = document.createElement('video');
+			attachmentElem.src = attachment.url;
+			attachmentElem.controls = 'controls';
+		} else if (contentType.startsWith('audio')) {
+			attachmentElem = document.createElement('audio');
+			attachmentElem.src = attachment.url;
+			attachmentElem.controls = 'controls';
+		} else {
+			attachmentElem = document.createElement('a');
+			attachmentElem.href = attachment.url;
+			attachmentElem.textContent = attachment.filename;
+		}
+		if (attachmentElem) {
+			attachmentElem.classList.add('msg_media');
+			msgContent.appendChild(attachmentElem);
+		}
+	}
+	return msgContent;
+}
+
+function prependMessage(message) {
+	var msgContent = createMessageElem(message);
+	messages.insertBefore(msgContent, messages.children[0] || null);
+}
+
+function appendMessage(message) {
+	var msgContent = createMessageElem(message);
+	messages.appendChild(msgContent);
+	
+	if (message.author.id === discordInstance.user.id) {
+		requestAnimationFrame(function () { messages.scrollTop = messages.scrollHeight; });
+	}
+}
+
+function updateLatestMessages() {
+	messages.innerHTML = '';
+	messages.style.display = 'none';
+	var pr = Promise.resolve(null);
+	if (localStorage.getItem('channel_id') !== null) {
+		pr = discordInstance.channels.get(localStorage.getItem('channel_id')).fetchMessages()
+		.then(function (msgColl) {
+			for (var msg of msgColl.values()) {
+				prependMessage(msg);
+			}
+			requestAnimationFrame(function () {
+				messages.scrollTop = messages.scrollHeight;
+			});
+		});
+	}
+	messages.style.display = '';
+	return pr;
+}
+
+tryLogin();
+},{"buffer":7,"discord.js":155,"mime-types":206,"path":26}],53:[function(require,module,exports){
+module.exports = Long;
+
+/**
+ * wasm optimizations, to do native i64 multiplication and divide
+ */
+var wasm = null;
+
+try {
+  wasm = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([
+    0, 97, 115, 109, 1, 0, 0, 0, 1, 13, 2, 96, 0, 1, 127, 96, 4, 127, 127, 127, 127, 1, 127, 3, 7, 6, 0, 1, 1, 1, 1, 1, 6, 6, 1, 127, 1, 65, 0, 11, 7, 50, 6, 3, 109, 117, 108, 0, 1, 5, 100, 105, 118, 95, 115, 0, 2, 5, 100, 105, 118, 95, 117, 0, 3, 5, 114, 101, 109, 95, 115, 0, 4, 5, 114, 101, 109, 95, 117, 0, 5, 8, 103, 101, 116, 95, 104, 105, 103, 104, 0, 0, 10, 191, 1, 6, 4, 0, 35, 0, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 126, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 127, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 128, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 129, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 130, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11
+  ])), {}).exports;
+} catch (e) {
+  // no wasm support :(
+}
+
+/**
+ * Constructs a 64 bit two's-complement integer, given its low and high 32 bit values as *signed* integers.
+ *  See the from* functions below for more convenient ways of constructing Longs.
+ * @exports Long
+ * @class A Long class for representing a 64 bit two's-complement integer value.
+ * @param {number} low The low (signed) 32 bits of the long
+ * @param {number} high The high (signed) 32 bits of the long
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @constructor
+ */
+function Long(low, high, unsigned) {
+
+    /**
+     * The low 32 bits as a signed value.
+     * @type {number}
+     */
+    this.low = low | 0;
+
+    /**
+     * The high 32 bits as a signed value.
+     * @type {number}
+     */
+    this.high = high | 0;
+
+    /**
+     * Whether unsigned or not.
+     * @type {boolean}
+     */
+    this.unsigned = !!unsigned;
+}
+
+// The internal representation of a long is the two given signed, 32-bit values.
+// We use 32-bit pieces because these are the size of integers on which
+// Javascript performs bit-operations.  For operations like addition and
+// multiplication, we split each number into 16 bit pieces, which can easily be
+// multiplied within Javascript's floating-point representation without overflow
+// or change in sign.
+//
+// In the algorithms below, we frequently reduce the negative case to the
+// positive case by negating the input(s) and then post-processing the result.
+// Note that we must ALWAYS check specially whether those values are MIN_VALUE
+// (-2^63) because -MIN_VALUE == MIN_VALUE (since 2^63 cannot be represented as
+// a positive number, it overflows back into a negative).  Not handling this
+// case would often result in infinite recursion.
+//
+// Common constant values ZERO, ONE, NEG_ONE, etc. are defined below the from*
+// methods on which they depend.
+
+/**
+ * An indicator used to reliably determine if an object is a Long or not.
+ * @type {boolean}
+ * @const
+ * @private
+ */
+Long.prototype.__isLong__;
+
+Object.defineProperty(Long.prototype, "__isLong__", { value: true });
+
+/**
+ * @function
+ * @param {*} obj Object
+ * @returns {boolean}
+ * @inner
+ */
+function isLong(obj) {
+    return (obj && obj["__isLong__"]) === true;
+}
+
+/**
+ * Tests if the specified object is a Long.
+ * @function
+ * @param {*} obj Object
+ * @returns {boolean}
+ */
+Long.isLong = isLong;
+
+/**
+ * A cache of the Long representations of small integer values.
+ * @type {!Object}
+ * @inner
+ */
+var INT_CACHE = {};
+
+/**
+ * A cache of the Long representations of small unsigned integer values.
+ * @type {!Object}
+ * @inner
+ */
+var UINT_CACHE = {};
+
+/**
+ * @param {number} value
+ * @param {boolean=} unsigned
+ * @returns {!Long}
+ * @inner
+ */
+function fromInt(value, unsigned) {
+    var obj, cachedObj, cache;
+    if (unsigned) {
+        value >>>= 0;
+        if (cache = (0 <= value && value < 256)) {
+            cachedObj = UINT_CACHE[value];
+            if (cachedObj)
+                return cachedObj;
+        }
+        obj = fromBits(value, (value | 0) < 0 ? -1 : 0, true);
+        if (cache)
+            UINT_CACHE[value] = obj;
+        return obj;
+    } else {
+        value |= 0;
+        if (cache = (-128 <= value && value < 128)) {
+            cachedObj = INT_CACHE[value];
+            if (cachedObj)
+                return cachedObj;
+        }
+        obj = fromBits(value, value < 0 ? -1 : 0, false);
+        if (cache)
+            INT_CACHE[value] = obj;
+        return obj;
+    }
+}
+
+/**
+ * Returns a Long representing the given 32 bit integer value.
+ * @function
+ * @param {number} value The 32 bit integer in question
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @returns {!Long} The corresponding Long value
+ */
+Long.fromInt = fromInt;
+
+/**
+ * @param {number} value
+ * @param {boolean=} unsigned
+ * @returns {!Long}
+ * @inner
+ */
+function fromNumber(value, unsigned) {
+    if (isNaN(value))
+        return unsigned ? UZERO : ZERO;
+    if (unsigned) {
+        if (value < 0)
+            return UZERO;
+        if (value >= TWO_PWR_64_DBL)
+            return MAX_UNSIGNED_VALUE;
+    } else {
+        if (value <= -TWO_PWR_63_DBL)
+            return MIN_VALUE;
+        if (value + 1 >= TWO_PWR_63_DBL)
+            return MAX_VALUE;
+    }
+    if (value < 0)
+        return fromNumber(-value, unsigned).neg();
+    return fromBits((value % TWO_PWR_32_DBL) | 0, (value / TWO_PWR_32_DBL) | 0, unsigned);
+}
+
+/**
+ * Returns a Long representing the given value, provided that it is a finite number. Otherwise, zero is returned.
+ * @function
+ * @param {number} value The number in question
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @returns {!Long} The corresponding Long value
+ */
+Long.fromNumber = fromNumber;
+
+/**
+ * @param {number} lowBits
+ * @param {number} highBits
+ * @param {boolean=} unsigned
+ * @returns {!Long}
+ * @inner
+ */
+function fromBits(lowBits, highBits, unsigned) {
+    return new Long(lowBits, highBits, unsigned);
+}
+
+/**
+ * Returns a Long representing the 64 bit integer that comes by concatenating the given low and high bits. Each is
+ *  assumed to use 32 bits.
+ * @function
+ * @param {number} lowBits The low 32 bits
+ * @param {number} highBits The high 32 bits
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @returns {!Long} The corresponding Long value
+ */
+Long.fromBits = fromBits;
+
+/**
+ * @function
+ * @param {number} base
+ * @param {number} exponent
+ * @returns {number}
+ * @inner
+ */
+var pow_dbl = Math.pow; // Used 4 times (4*8 to 15+4)
+
+/**
+ * @param {string} str
+ * @param {(boolean|number)=} unsigned
+ * @param {number=} radix
+ * @returns {!Long}
+ * @inner
+ */
+function fromString(str, unsigned, radix) {
+    if (str.length === 0)
+        throw Error('empty string');
+    if (str === "NaN" || str === "Infinity" || str === "+Infinity" || str === "-Infinity")
+        return ZERO;
+    if (typeof unsigned === 'number') {
+        // For goog.math.long compatibility
+        radix = unsigned,
+        unsigned = false;
+    } else {
+        unsigned = !! unsigned;
+    }
+    radix = radix || 10;
+    if (radix < 2 || 36 < radix)
+        throw RangeError('radix');
+
+    var p;
+    if ((p = str.indexOf('-')) > 0)
+        throw Error('interior hyphen');
+    else if (p === 0) {
+        return fromString(str.substring(1), unsigned, radix).neg();
+    }
+
+    // Do several (8) digits each time through the loop, so as to
+    // minimize the calls to the very expensive emulated div.
+    var radixToPower = fromNumber(pow_dbl(radix, 8));
+
+    var result = ZERO;
+    for (var i = 0; i < str.length; i += 8) {
+        var size = Math.min(8, str.length - i),
+            value = parseInt(str.substring(i, i + size), radix);
+        if (size < 8) {
+            var power = fromNumber(pow_dbl(radix, size));
+            result = result.mul(power).add(fromNumber(value));
+        } else {
+            result = result.mul(radixToPower);
+            result = result.add(fromNumber(value));
+        }
+    }
+    result.unsigned = unsigned;
+    return result;
+}
+
+/**
+ * Returns a Long representation of the given string, written using the specified radix.
+ * @function
+ * @param {string} str The textual representation of the Long
+ * @param {(boolean|number)=} unsigned Whether unsigned or not, defaults to signed
+ * @param {number=} radix The radix in which the text is written (2-36), defaults to 10
+ * @returns {!Long} The corresponding Long value
+ */
+Long.fromString = fromString;
+
+/**
+ * @function
+ * @param {!Long|number|string|!{low: number, high: number, unsigned: boolean}} val
+ * @param {boolean=} unsigned
+ * @returns {!Long}
+ * @inner
+ */
+function fromValue(val, unsigned) {
+    if (typeof val === 'number')
+        return fromNumber(val, unsigned);
+    if (typeof val === 'string')
+        return fromString(val, unsigned);
+    // Throws for non-objects, converts non-instanceof Long:
+    return fromBits(val.low, val.high, typeof unsigned === 'boolean' ? unsigned : val.unsigned);
+}
+
+/**
+ * Converts the specified value to a Long using the appropriate from* function for its type.
+ * @function
+ * @param {!Long|number|string|!{low: number, high: number, unsigned: boolean}} val Value
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @returns {!Long}
+ */
+Long.fromValue = fromValue;
+
+// NOTE: the compiler should inline these constant values below and then remove these variables, so there should be
+// no runtime penalty for these.
+
+/**
+ * @type {number}
+ * @const
+ * @inner
+ */
+var TWO_PWR_16_DBL = 1 << 16;
+
+/**
+ * @type {number}
+ * @const
+ * @inner
+ */
+var TWO_PWR_24_DBL = 1 << 24;
+
+/**
+ * @type {number}
+ * @const
+ * @inner
+ */
+var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
+
+/**
+ * @type {number}
+ * @const
+ * @inner
+ */
+var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
+
+/**
+ * @type {number}
+ * @const
+ * @inner
+ */
+var TWO_PWR_63_DBL = TWO_PWR_64_DBL / 2;
+
+/**
+ * @type {!Long}
+ * @const
+ * @inner
+ */
+var TWO_PWR_24 = fromInt(TWO_PWR_24_DBL);
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var ZERO = fromInt(0);
+
+/**
+ * Signed zero.
+ * @type {!Long}
+ */
+Long.ZERO = ZERO;
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var UZERO = fromInt(0, true);
+
+/**
+ * Unsigned zero.
+ * @type {!Long}
+ */
+Long.UZERO = UZERO;
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var ONE = fromInt(1);
+
+/**
+ * Signed one.
+ * @type {!Long}
+ */
+Long.ONE = ONE;
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var UONE = fromInt(1, true);
+
+/**
+ * Unsigned one.
+ * @type {!Long}
+ */
+Long.UONE = UONE;
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var NEG_ONE = fromInt(-1);
+
+/**
+ * Signed negative one.
+ * @type {!Long}
+ */
+Long.NEG_ONE = NEG_ONE;
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var MAX_VALUE = fromBits(0xFFFFFFFF|0, 0x7FFFFFFF|0, false);
+
+/**
+ * Maximum signed value.
+ * @type {!Long}
+ */
+Long.MAX_VALUE = MAX_VALUE;
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var MAX_UNSIGNED_VALUE = fromBits(0xFFFFFFFF|0, 0xFFFFFFFF|0, true);
+
+/**
+ * Maximum unsigned value.
+ * @type {!Long}
+ */
+Long.MAX_UNSIGNED_VALUE = MAX_UNSIGNED_VALUE;
+
+/**
+ * @type {!Long}
+ * @inner
+ */
+var MIN_VALUE = fromBits(0, 0x80000000|0, false);
+
+/**
+ * Minimum signed value.
+ * @type {!Long}
+ */
+Long.MIN_VALUE = MIN_VALUE;
+
+/**
+ * @alias Long.prototype
+ * @inner
+ */
+var LongPrototype = Long.prototype;
+
+/**
+ * Converts the Long to a 32 bit integer, assuming it is a 32 bit integer.
+ * @returns {number}
+ */
+LongPrototype.toInt = function toInt() {
+    return this.unsigned ? this.low >>> 0 : this.low;
+};
+
+/**
+ * Converts the Long to a the nearest floating-point representation of this value (double, 53 bit mantissa).
+ * @returns {number}
+ */
+LongPrototype.toNumber = function toNumber() {
+    if (this.unsigned)
+        return ((this.high >>> 0) * TWO_PWR_32_DBL) + (this.low >>> 0);
+    return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
+};
+
+/**
+ * Converts the Long to a string written in the specified radix.
+ * @param {number=} radix Radix (2-36), defaults to 10
+ * @returns {string}
+ * @override
+ * @throws {RangeError} If `radix` is out of range
+ */
+LongPrototype.toString = function toString(radix) {
+    radix = radix || 10;
+    if (radix < 2 || 36 < radix)
+        throw RangeError('radix');
+    if (this.isZero())
+        return '0';
+    if (this.isNegative()) { // Unsigned Longs are never negative
+        if (this.eq(MIN_VALUE)) {
+            // We need to change the Long value before it can be negated, so we remove
+            // the bottom-most digit in this base and then recurse to do the rest.
+            var radixLong = fromNumber(radix),
+                div = this.div(radixLong),
+                rem1 = div.mul(radixLong).sub(this);
+            return div.toString(radix) + rem1.toInt().toString(radix);
+        } else
+            return '-' + this.neg().toString(radix);
+    }
+
+    // Do several (6) digits each time through the loop, so as to
+    // minimize the calls to the very expensive emulated div.
+    var radixToPower = fromNumber(pow_dbl(radix, 6), this.unsigned),
+        rem = this;
+    var result = '';
+    while (true) {
+        var remDiv = rem.div(radixToPower),
+            intval = rem.sub(remDiv.mul(radixToPower)).toInt() >>> 0,
+            digits = intval.toString(radix);
+        rem = remDiv;
+        if (rem.isZero())
+            return digits + result;
+        else {
+            while (digits.length < 6)
+                digits = '0' + digits;
+            result = '' + digits + result;
+        }
+    }
+};
+
+/**
+ * Gets the high 32 bits as a signed integer.
+ * @returns {number} Signed high bits
+ */
+LongPrototype.getHighBits = function getHighBits() {
+    return this.high;
+};
+
+/**
+ * Gets the high 32 bits as an unsigned integer.
+ * @returns {number} Unsigned high bits
+ */
+LongPrototype.getHighBitsUnsigned = function getHighBitsUnsigned() {
+    return this.high >>> 0;
+};
+
+/**
+ * Gets the low 32 bits as a signed integer.
+ * @returns {number} Signed low bits
+ */
+LongPrototype.getLowBits = function getLowBits() {
+    return this.low;
+};
+
+/**
+ * Gets the low 32 bits as an unsigned integer.
+ * @returns {number} Unsigned low bits
+ */
+LongPrototype.getLowBitsUnsigned = function getLowBitsUnsigned() {
+    return this.low >>> 0;
+};
+
+/**
+ * Gets the number of bits needed to represent the absolute value of this Long.
+ * @returns {number}
+ */
+LongPrototype.getNumBitsAbs = function getNumBitsAbs() {
+    if (this.isNegative()) // Unsigned Longs are never negative
+        return this.eq(MIN_VALUE) ? 64 : this.neg().getNumBitsAbs();
+    var val = this.high != 0 ? this.high : this.low;
+    for (var bit = 31; bit > 0; bit--)
+        if ((val & (1 << bit)) != 0)
+            break;
+    return this.high != 0 ? bit + 33 : bit + 1;
+};
+
+/**
+ * Tests if this Long's value equals zero.
+ * @returns {boolean}
+ */
+LongPrototype.isZero = function isZero() {
+    return this.high === 0 && this.low === 0;
+};
+
+/**
+ * Tests if this Long's value equals zero. This is an alias of {@link Long#isZero}.
+ * @returns {boolean}
+ */
+LongPrototype.eqz = LongPrototype.isZero;
+
+/**
+ * Tests if this Long's value is negative.
+ * @returns {boolean}
+ */
+LongPrototype.isNegative = function isNegative() {
+    return !this.unsigned && this.high < 0;
+};
+
+/**
+ * Tests if this Long's value is positive.
+ * @returns {boolean}
+ */
+LongPrototype.isPositive = function isPositive() {
+    return this.unsigned || this.high >= 0;
+};
+
+/**
+ * Tests if this Long's value is odd.
+ * @returns {boolean}
+ */
+LongPrototype.isOdd = function isOdd() {
+    return (this.low & 1) === 1;
+};
+
+/**
+ * Tests if this Long's value is even.
+ * @returns {boolean}
+ */
+LongPrototype.isEven = function isEven() {
+    return (this.low & 1) === 0;
+};
+
+/**
+ * Tests if this Long's value equals the specified's.
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.equals = function equals(other) {
+    if (!isLong(other))
+        other = fromValue(other);
+    if (this.unsigned !== other.unsigned && (this.high >>> 31) === 1 && (other.high >>> 31) === 1)
+        return false;
+    return this.high === other.high && this.low === other.low;
+};
+
+/**
+ * Tests if this Long's value equals the specified's. This is an alias of {@link Long#equals}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.eq = LongPrototype.equals;
+
+/**
+ * Tests if this Long's value differs from the specified's.
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.notEquals = function notEquals(other) {
+    return !this.eq(/* validates */ other);
+};
+
+/**
+ * Tests if this Long's value differs from the specified's. This is an alias of {@link Long#notEquals}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.neq = LongPrototype.notEquals;
+
+/**
+ * Tests if this Long's value differs from the specified's. This is an alias of {@link Long#notEquals}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.ne = LongPrototype.notEquals;
+
+/**
+ * Tests if this Long's value is less than the specified's.
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.lessThan = function lessThan(other) {
+    return this.comp(/* validates */ other) < 0;
+};
+
+/**
+ * Tests if this Long's value is less than the specified's. This is an alias of {@link Long#lessThan}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.lt = LongPrototype.lessThan;
+
+/**
+ * Tests if this Long's value is less than or equal the specified's.
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.lessThanOrEqual = function lessThanOrEqual(other) {
+    return this.comp(/* validates */ other) <= 0;
+};
+
+/**
+ * Tests if this Long's value is less than or equal the specified's. This is an alias of {@link Long#lessThanOrEqual}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.lte = LongPrototype.lessThanOrEqual;
+
+/**
+ * Tests if this Long's value is less than or equal the specified's. This is an alias of {@link Long#lessThanOrEqual}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.le = LongPrototype.lessThanOrEqual;
+
+/**
+ * Tests if this Long's value is greater than the specified's.
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.greaterThan = function greaterThan(other) {
+    return this.comp(/* validates */ other) > 0;
+};
+
+/**
+ * Tests if this Long's value is greater than the specified's. This is an alias of {@link Long#greaterThan}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.gt = LongPrototype.greaterThan;
+
+/**
+ * Tests if this Long's value is greater than or equal the specified's.
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.greaterThanOrEqual = function greaterThanOrEqual(other) {
+    return this.comp(/* validates */ other) >= 0;
+};
+
+/**
+ * Tests if this Long's value is greater than or equal the specified's. This is an alias of {@link Long#greaterThanOrEqual}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.gte = LongPrototype.greaterThanOrEqual;
+
+/**
+ * Tests if this Long's value is greater than or equal the specified's. This is an alias of {@link Long#greaterThanOrEqual}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {boolean}
+ */
+LongPrototype.ge = LongPrototype.greaterThanOrEqual;
+
+/**
+ * Compares this Long's value with the specified's.
+ * @param {!Long|number|string} other Other value
+ * @returns {number} 0 if they are the same, 1 if the this is greater and -1
+ *  if the given one is greater
+ */
+LongPrototype.compare = function compare(other) {
+    if (!isLong(other))
+        other = fromValue(other);
+    if (this.eq(other))
+        return 0;
+    var thisNeg = this.isNegative(),
+        otherNeg = other.isNegative();
+    if (thisNeg && !otherNeg)
+        return -1;
+    if (!thisNeg && otherNeg)
+        return 1;
+    // At this point the sign bits are the same
+    if (!this.unsigned)
+        return this.sub(other).isNegative() ? -1 : 1;
+    // Both are positive if at least one is unsigned
+    return (other.high >>> 0) > (this.high >>> 0) || (other.high === this.high && (other.low >>> 0) > (this.low >>> 0)) ? -1 : 1;
+};
+
+/**
+ * Compares this Long's value with the specified's. This is an alias of {@link Long#compare}.
+ * @function
+ * @param {!Long|number|string} other Other value
+ * @returns {number} 0 if they are the same, 1 if the this is greater and -1
+ *  if the given one is greater
+ */
+LongPrototype.comp = LongPrototype.compare;
+
+/**
+ * Negates this Long's value.
+ * @returns {!Long} Negated Long
+ */
+LongPrototype.negate = function negate() {
+    if (!this.unsigned && this.eq(MIN_VALUE))
+        return MIN_VALUE;
+    return this.not().add(ONE);
+};
+
+/**
+ * Negates this Long's value. This is an alias of {@link Long#negate}.
+ * @function
+ * @returns {!Long} Negated Long
+ */
+LongPrototype.neg = LongPrototype.negate;
+
+/**
+ * Returns the sum of this and the specified Long.
+ * @param {!Long|number|string} addend Addend
+ * @returns {!Long} Sum
+ */
+LongPrototype.add = function add(addend) {
+    if (!isLong(addend))
+        addend = fromValue(addend);
+
+    // Divide each number into 4 chunks of 16 bits, and then sum the chunks.
+
+    var a48 = this.high >>> 16;
+    var a32 = this.high & 0xFFFF;
+    var a16 = this.low >>> 16;
+    var a00 = this.low & 0xFFFF;
+
+    var b48 = addend.high >>> 16;
+    var b32 = addend.high & 0xFFFF;
+    var b16 = addend.low >>> 16;
+    var b00 = addend.low & 0xFFFF;
+
+    var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+    c00 += a00 + b00;
+    c16 += c00 >>> 16;
+    c00 &= 0xFFFF;
+    c16 += a16 + b16;
+    c32 += c16 >>> 16;
+    c16 &= 0xFFFF;
+    c32 += a32 + b32;
+    c48 += c32 >>> 16;
+    c32 &= 0xFFFF;
+    c48 += a48 + b48;
+    c48 &= 0xFFFF;
+    return fromBits((c16 << 16) | c00, (c48 << 16) | c32, this.unsigned);
+};
+
+/**
+ * Returns the difference of this and the specified Long.
+ * @param {!Long|number|string} subtrahend Subtrahend
+ * @returns {!Long} Difference
+ */
+LongPrototype.subtract = function subtract(subtrahend) {
+    if (!isLong(subtrahend))
+        subtrahend = fromValue(subtrahend);
+    return this.add(subtrahend.neg());
+};
+
+/**
+ * Returns the difference of this and the specified Long. This is an alias of {@link Long#subtract}.
+ * @function
+ * @param {!Long|number|string} subtrahend Subtrahend
+ * @returns {!Long} Difference
+ */
+LongPrototype.sub = LongPrototype.subtract;
+
+/**
+ * Returns the product of this and the specified Long.
+ * @param {!Long|number|string} multiplier Multiplier
+ * @returns {!Long} Product
+ */
+LongPrototype.multiply = function multiply(multiplier) {
+    if (this.isZero())
+        return ZERO;
+    if (!isLong(multiplier))
+        multiplier = fromValue(multiplier);
+
+    // use wasm support if present
+    if (wasm) {
+        var low = wasm.mul(this.low,
+                           this.high,
+                           multiplier.low,
+                           multiplier.high);
+        return fromBits(low, wasm.get_high(), this.unsigned);
+    }
+
+    if (multiplier.isZero())
+        return ZERO;
+    if (this.eq(MIN_VALUE))
+        return multiplier.isOdd() ? MIN_VALUE : ZERO;
+    if (multiplier.eq(MIN_VALUE))
+        return this.isOdd() ? MIN_VALUE : ZERO;
+
+    if (this.isNegative()) {
+        if (multiplier.isNegative())
+            return this.neg().mul(multiplier.neg());
+        else
+            return this.neg().mul(multiplier).neg();
+    } else if (multiplier.isNegative())
+        return this.mul(multiplier.neg()).neg();
+
+    // If both longs are small, use float multiplication
+    if (this.lt(TWO_PWR_24) && multiplier.lt(TWO_PWR_24))
+        return fromNumber(this.toNumber() * multiplier.toNumber(), this.unsigned);
+
+    // Divide each long into 4 chunks of 16 bits, and then add up 4x4 products.
+    // We can skip products that would overflow.
+
+    var a48 = this.high >>> 16;
+    var a32 = this.high & 0xFFFF;
+    var a16 = this.low >>> 16;
+    var a00 = this.low & 0xFFFF;
+
+    var b48 = multiplier.high >>> 16;
+    var b32 = multiplier.high & 0xFFFF;
+    var b16 = multiplier.low >>> 16;
+    var b00 = multiplier.low & 0xFFFF;
+
+    var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+    c00 += a00 * b00;
+    c16 += c00 >>> 16;
+    c00 &= 0xFFFF;
+    c16 += a16 * b00;
+    c32 += c16 >>> 16;
+    c16 &= 0xFFFF;
+    c16 += a00 * b16;
+    c32 += c16 >>> 16;
+    c16 &= 0xFFFF;
+    c32 += a32 * b00;
+    c48 += c32 >>> 16;
+    c32 &= 0xFFFF;
+    c32 += a16 * b16;
+    c48 += c32 >>> 16;
+    c32 &= 0xFFFF;
+    c32 += a00 * b32;
+    c48 += c32 >>> 16;
+    c32 &= 0xFFFF;
+    c48 += a48 * b00 + a32 * b16 + a16 * b32 + a00 * b48;
+    c48 &= 0xFFFF;
+    return fromBits((c16 << 16) | c00, (c48 << 16) | c32, this.unsigned);
+};
+
+/**
+ * Returns the product of this and the specified Long. This is an alias of {@link Long#multiply}.
+ * @function
+ * @param {!Long|number|string} multiplier Multiplier
+ * @returns {!Long} Product
+ */
+LongPrototype.mul = LongPrototype.multiply;
+
+/**
+ * Returns this Long divided by the specified. The result is signed if this Long is signed or
+ *  unsigned if this Long is unsigned.
+ * @param {!Long|number|string} divisor Divisor
+ * @returns {!Long} Quotient
+ */
+LongPrototype.divide = function divide(divisor) {
+    if (!isLong(divisor))
+        divisor = fromValue(divisor);
+    if (divisor.isZero())
+        throw Error('division by zero');
+
+    // use wasm support if present
+    if (wasm) {
+        // guard against signed division overflow: the largest
+        // negative number / -1 would be 1 larger than the largest
+        // positive number, due to two's complement.
+        if (!this.unsigned &&
+            this.high === -0x80000000 &&
+            divisor.low === -1 && divisor.high === -1) {
+            // be consistent with non-wasm code path
+            return this;
+        }
+        var low = (this.unsigned ? wasm.div_u : wasm.div_s)(
+            this.low,
+            this.high,
+            divisor.low,
+            divisor.high
+        );
+        return fromBits(low, wasm.get_high(), this.unsigned);
+    }
+
+    if (this.isZero())
+        return this.unsigned ? UZERO : ZERO;
+    var approx, rem, res;
+    if (!this.unsigned) {
+        // This section is only relevant for signed longs and is derived from the
+        // closure library as a whole.
+        if (this.eq(MIN_VALUE)) {
+            if (divisor.eq(ONE) || divisor.eq(NEG_ONE))
+                return MIN_VALUE;  // recall that -MIN_VALUE == MIN_VALUE
+            else if (divisor.eq(MIN_VALUE))
+                return ONE;
+            else {
+                // At this point, we have |other| >= 2, so |this/other| < |MIN_VALUE|.
+                var halfThis = this.shr(1);
+                approx = halfThis.div(divisor).shl(1);
+                if (approx.eq(ZERO)) {
+                    return divisor.isNegative() ? ONE : NEG_ONE;
+                } else {
+                    rem = this.sub(divisor.mul(approx));
+                    res = approx.add(rem.div(divisor));
+                    return res;
+                }
+            }
+        } else if (divisor.eq(MIN_VALUE))
+            return this.unsigned ? UZERO : ZERO;
+        if (this.isNegative()) {
+            if (divisor.isNegative())
+                return this.neg().div(divisor.neg());
+            return this.neg().div(divisor).neg();
+        } else if (divisor.isNegative())
+            return this.div(divisor.neg()).neg();
+        res = ZERO;
+    } else {
+        // The algorithm below has not been made for unsigned longs. It's therefore
+        // required to take special care of the MSB prior to running it.
+        if (!divisor.unsigned)
+            divisor = divisor.toUnsigned();
+        if (divisor.gt(this))
+            return UZERO;
+        if (divisor.gt(this.shru(1))) // 15 >>> 1 = 7 ; with divisor = 8 ; true
+            return UONE;
+        res = UZERO;
+    }
+
+    // Repeat the following until the remainder is less than other:  find a
+    // floating-point that approximates remainder / other *from below*, add this
+    // into the result, and subtract it from the remainder.  It is critical that
+    // the approximate value is less than or equal to the real value so that the
+    // remainder never becomes negative.
+    rem = this;
+    while (rem.gte(divisor)) {
+        // Approximate the result of division. This may be a little greater or
+        // smaller than the actual value.
+        approx = Math.max(1, Math.floor(rem.toNumber() / divisor.toNumber()));
+
+        // We will tweak the approximate result by changing it in the 48-th digit or
+        // the smallest non-fractional digit, whichever is larger.
+        var log2 = Math.ceil(Math.log(approx) / Math.LN2),
+            delta = (log2 <= 48) ? 1 : pow_dbl(2, log2 - 48),
+
+        // Decrease the approximation until it is smaller than the remainder.  Note
+        // that if it is too large, the product overflows and is negative.
+            approxRes = fromNumber(approx),
+            approxRem = approxRes.mul(divisor);
+        while (approxRem.isNegative() || approxRem.gt(rem)) {
+            approx -= delta;
+            approxRes = fromNumber(approx, this.unsigned);
+            approxRem = approxRes.mul(divisor);
+        }
+
+        // We know the answer can't be zero... and actually, zero would cause
+        // infinite recursion since we would make no progress.
+        if (approxRes.isZero())
+            approxRes = ONE;
+
+        res = res.add(approxRes);
+        rem = rem.sub(approxRem);
+    }
+    return res;
+};
+
+/**
+ * Returns this Long divided by the specified. This is an alias of {@link Long#divide}.
+ * @function
+ * @param {!Long|number|string} divisor Divisor
+ * @returns {!Long} Quotient
+ */
+LongPrototype.div = LongPrototype.divide;
+
+/**
+ * Returns this Long modulo the specified.
+ * @param {!Long|number|string} divisor Divisor
+ * @returns {!Long} Remainder
+ */
+LongPrototype.modulo = function modulo(divisor) {
+    if (!isLong(divisor))
+        divisor = fromValue(divisor);
+
+    // use wasm support if present
+    if (wasm) {
+        var low = (this.unsigned ? wasm.rem_u : wasm.rem_s)(
+            this.low,
+            this.high,
+            divisor.low,
+            divisor.high
+        );
+        return fromBits(low, wasm.get_high(), this.unsigned);
+    }
+
+    return this.sub(this.div(divisor).mul(divisor));
+};
+
+/**
+ * Returns this Long modulo the specified. This is an alias of {@link Long#modulo}.
+ * @function
+ * @param {!Long|number|string} divisor Divisor
+ * @returns {!Long} Remainder
+ */
+LongPrototype.mod = LongPrototype.modulo;
+
+/**
+ * Returns this Long modulo the specified. This is an alias of {@link Long#modulo}.
+ * @function
+ * @param {!Long|number|string} divisor Divisor
+ * @returns {!Long} Remainder
+ */
+LongPrototype.rem = LongPrototype.modulo;
+
+/**
+ * Returns the bitwise NOT of this Long.
+ * @returns {!Long}
+ */
+LongPrototype.not = function not() {
+    return fromBits(~this.low, ~this.high, this.unsigned);
+};
+
+/**
+ * Returns the bitwise AND of this Long and the specified.
+ * @param {!Long|number|string} other Other Long
+ * @returns {!Long}
+ */
+LongPrototype.and = function and(other) {
+    if (!isLong(other))
+        other = fromValue(other);
+    return fromBits(this.low & other.low, this.high & other.high, this.unsigned);
+};
+
+/**
+ * Returns the bitwise OR of this Long and the specified.
+ * @param {!Long|number|string} other Other Long
+ * @returns {!Long}
+ */
+LongPrototype.or = function or(other) {
+    if (!isLong(other))
+        other = fromValue(other);
+    return fromBits(this.low | other.low, this.high | other.high, this.unsigned);
+};
+
+/**
+ * Returns the bitwise XOR of this Long and the given one.
+ * @param {!Long|number|string} other Other Long
+ * @returns {!Long}
+ */
+LongPrototype.xor = function xor(other) {
+    if (!isLong(other))
+        other = fromValue(other);
+    return fromBits(this.low ^ other.low, this.high ^ other.high, this.unsigned);
+};
+
+/**
+ * Returns this Long with bits shifted to the left by the given amount.
+ * @param {number|!Long} numBits Number of bits
+ * @returns {!Long} Shifted Long
+ */
+LongPrototype.shiftLeft = function shiftLeft(numBits) {
+    if (isLong(numBits))
+        numBits = numBits.toInt();
+    if ((numBits &= 63) === 0)
+        return this;
+    else if (numBits < 32)
+        return fromBits(this.low << numBits, (this.high << numBits) | (this.low >>> (32 - numBits)), this.unsigned);
+    else
+        return fromBits(0, this.low << (numBits - 32), this.unsigned);
+};
+
+/**
+ * Returns this Long with bits shifted to the left by the given amount. This is an alias of {@link Long#shiftLeft}.
+ * @function
+ * @param {number|!Long} numBits Number of bits
+ * @returns {!Long} Shifted Long
+ */
+LongPrototype.shl = LongPrototype.shiftLeft;
+
+/**
+ * Returns this Long with bits arithmetically shifted to the right by the given amount.
+ * @param {number|!Long} numBits Number of bits
+ * @returns {!Long} Shifted Long
+ */
+LongPrototype.shiftRight = function shiftRight(numBits) {
+    if (isLong(numBits))
+        numBits = numBits.toInt();
+    if ((numBits &= 63) === 0)
+        return this;
+    else if (numBits < 32)
+        return fromBits((this.low >>> numBits) | (this.high << (32 - numBits)), this.high >> numBits, this.unsigned);
+    else
+        return fromBits(this.high >> (numBits - 32), this.high >= 0 ? 0 : -1, this.unsigned);
+};
+
+/**
+ * Returns this Long with bits arithmetically shifted to the right by the given amount. This is an alias of {@link Long#shiftRight}.
+ * @function
+ * @param {number|!Long} numBits Number of bits
+ * @returns {!Long} Shifted Long
+ */
+LongPrototype.shr = LongPrototype.shiftRight;
+
+/**
+ * Returns this Long with bits logically shifted to the right by the given amount.
+ * @param {number|!Long} numBits Number of bits
+ * @returns {!Long} Shifted Long
+ */
+LongPrototype.shiftRightUnsigned = function shiftRightUnsigned(numBits) {
+    if (isLong(numBits))
+        numBits = numBits.toInt();
+    numBits &= 63;
+    if (numBits === 0)
+        return this;
+    else {
+        var high = this.high;
+        if (numBits < 32) {
+            var low = this.low;
+            return fromBits((low >>> numBits) | (high << (32 - numBits)), high >>> numBits, this.unsigned);
+        } else if (numBits === 32)
+            return fromBits(high, 0, this.unsigned);
+        else
+            return fromBits(high >>> (numBits - 32), 0, this.unsigned);
+    }
+};
+
+/**
+ * Returns this Long with bits logically shifted to the right by the given amount. This is an alias of {@link Long#shiftRightUnsigned}.
+ * @function
+ * @param {number|!Long} numBits Number of bits
+ * @returns {!Long} Shifted Long
+ */
+LongPrototype.shru = LongPrototype.shiftRightUnsigned;
+
+/**
+ * Returns this Long with bits logically shifted to the right by the given amount. This is an alias of {@link Long#shiftRightUnsigned}.
+ * @function
+ * @param {number|!Long} numBits Number of bits
+ * @returns {!Long} Shifted Long
+ */
+LongPrototype.shr_u = LongPrototype.shiftRightUnsigned;
+
+/**
+ * Converts this Long to signed.
+ * @returns {!Long} Signed long
+ */
+LongPrototype.toSigned = function toSigned() {
+    if (!this.unsigned)
+        return this;
+    return fromBits(this.low, this.high, false);
+};
+
+/**
+ * Converts this Long to unsigned.
+ * @returns {!Long} Unsigned long
+ */
+LongPrototype.toUnsigned = function toUnsigned() {
+    if (this.unsigned)
+        return this;
+    return fromBits(this.low, this.high, true);
+};
+
+/**
+ * Converts this Long to its byte representation.
+ * @param {boolean=} le Whether little or big endian, defaults to big endian
+ * @returns {!Array.<number>} Byte representation
+ */
+LongPrototype.toBytes = function toBytes(le) {
+    return le ? this.toBytesLE() : this.toBytesBE();
+};
+
+/**
+ * Converts this Long to its little endian byte representation.
+ * @returns {!Array.<number>} Little endian byte representation
+ */
+LongPrototype.toBytesLE = function toBytesLE() {
+    var hi = this.high,
+        lo = this.low;
+    return [
+        lo        & 0xff,
+        lo >>>  8 & 0xff,
+        lo >>> 16 & 0xff,
+        lo >>> 24       ,
+        hi        & 0xff,
+        hi >>>  8 & 0xff,
+        hi >>> 16 & 0xff,
+        hi >>> 24
+    ];
+};
+
+/**
+ * Converts this Long to its big endian byte representation.
+ * @returns {!Array.<number>} Big endian byte representation
+ */
+LongPrototype.toBytesBE = function toBytesBE() {
+    var hi = this.high,
+        lo = this.low;
+    return [
+        hi >>> 24       ,
+        hi >>> 16 & 0xff,
+        hi >>>  8 & 0xff,
+        hi        & 0xff,
+        lo >>> 24       ,
+        lo >>> 16 & 0xff,
+        lo >>>  8 & 0xff,
+        lo        & 0xff
+    ];
+};
+
+/**
+ * Creates a Long from its byte representation.
+ * @param {!Array.<number>} bytes Byte representation
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @param {boolean=} le Whether little or big endian, defaults to big endian
+ * @returns {Long} The corresponding Long value
+ */
+Long.fromBytes = function fromBytes(bytes, unsigned, le) {
+    return le ? Long.fromBytesLE(bytes, unsigned) : Long.fromBytesBE(bytes, unsigned);
+};
+
+/**
+ * Creates a Long from its little endian byte representation.
+ * @param {!Array.<number>} bytes Little endian byte representation
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @returns {Long} The corresponding Long value
+ */
+Long.fromBytesLE = function fromBytesLE(bytes, unsigned) {
+    return new Long(
+        bytes[0]       |
+        bytes[1] <<  8 |
+        bytes[2] << 16 |
+        bytes[3] << 24,
+        bytes[4]       |
+        bytes[5] <<  8 |
+        bytes[6] << 16 |
+        bytes[7] << 24,
+        unsigned
+    );
+};
+
+/**
+ * Creates a Long from its big endian byte representation.
+ * @param {!Array.<number>} bytes Big endian byte representation
+ * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+ * @returns {Long} The corresponding Long value
+ */
+Long.fromBytesBE = function fromBytesBE(bytes, unsigned) {
+    return new Long(
+        bytes[4] << 24 |
+        bytes[5] << 16 |
+        bytes[6] <<  8 |
+        bytes[7],
+        bytes[0] << 24 |
+        bytes[1] << 16 |
+        bytes[2] <<  8 |
+        bytes[3],
+        unsigned
+    );
+};
+
+},{}],54:[function(require,module,exports){
 module.exports={
   "_from": "discord.js",
   "_id": "discord.js@11.4.0",
   "_inBundle": false,
   "_integrity": "sha512-x/MxoRHMdRG6Ao5hwtIlwXW+0Z2JFlDg9uxgG+Azpl5zjqKgARwbyG2aqMs5GhEMinAP/zLHCrq5gbITWdWRbw==",
   "_location": "/discord.js",
-  "_phantomChildren": {},
+  "_phantomChildren": {
+    "async-limiter": "1.0.0",
+    "safe-buffer": "5.1.1"
+  },
   "_requested": {
     "type": "tag",
     "registry": true,
@@ -13437,7 +15107,7 @@ module.exports={
   "_resolved": "https://registry.npmjs.org/discord.js/-/discord.js-11.4.0.tgz",
   "_shasum": "a8a01c540141a7213aa108c0448ca592805505da",
   "_spec": "discord.js",
-  "_where": "/Users/phuong/discordcc",
+  "_where": "/Users/phuong/landmaster.github.io",
   "author": {
     "name": "Amish Shah",
     "email": "amishshah.2k@gmail.com"
@@ -13536,7 +15206,7 @@ module.exports={
   "version": "11.4.0"
 }
 
-},{}],53:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 (function (process){
 const EventEmitter = require('events');
 const Constants = require('../util/Constants');
@@ -14098,7 +15768,7 @@ module.exports = Client;
  */
 
 }).call(this,require('_process'))
-},{"../sharding/ShardClientUtil":155,"../structures/Presence":182,"../util/Collection":197,"../util/Constants":198,"../util/Permissions":199,"../util/Util":201,"./ClientDataManager":54,"./ClientDataResolver":55,"./ClientManager":56,"./actions/ActionsManager":59,"./rest/RESTManager":90,"./voice/ClientVoiceManager":96,"./voice/VoiceBroadcast":97,"./websocket/WebSocketManager":113,"_process":28,"events":9}],54:[function(require,module,exports){
+},{"../sharding/ShardClientUtil":157,"../structures/Presence":184,"../util/Collection":199,"../util/Constants":200,"../util/Permissions":201,"../util/Util":203,"./ClientDataManager":56,"./ClientDataResolver":57,"./ClientManager":58,"./actions/ActionsManager":61,"./rest/RESTManager":92,"./voice/ClientVoiceManager":98,"./voice/VoiceBroadcast":99,"./websocket/WebSocketManager":115,"_process":28,"events":9}],56:[function(require,module,exports){
 const Constants = require('../util/Constants');
 const Util = require('../util/Util');
 const Guild = require('../structures/Guild');
@@ -14236,7 +15906,7 @@ class ClientDataManager {
 
 module.exports = ClientDataManager;
 
-},{"../structures/CategoryChannel":158,"../structures/DMChannel":164,"../structures/Emoji":165,"../structures/GroupDMChannel":166,"../structures/Guild":167,"../structures/GuildChannel":169,"../structures/TextChannel":187,"../structures/User":188,"../structures/VoiceChannel":191,"../util/Constants":198,"../util/Util":201}],55:[function(require,module,exports){
+},{"../structures/CategoryChannel":160,"../structures/DMChannel":166,"../structures/Emoji":167,"../structures/GroupDMChannel":168,"../structures/Guild":169,"../structures/GuildChannel":171,"../structures/TextChannel":189,"../structures/User":190,"../structures/VoiceChannel":193,"../util/Constants":200,"../util/Util":203}],57:[function(require,module,exports){
 (function (Buffer){
 const path = require('path');
 const fs = require('fs');
@@ -14615,7 +16285,7 @@ class ClientDataResolver {
 module.exports = ClientDataResolver;
 
 }).call(this,require("buffer").Buffer)
-},{"../structures/Channel":159,"../structures/Emoji":165,"../structures/Guild":167,"../structures/GuildMember":170,"../structures/Message":172,"../structures/ReactionEmoji":184,"../structures/Role":186,"../structures/User":188,"../util/Constants":198,"../util/Util":201,"buffer":7,"fs":1,"path":26,"snekfetch":203}],56:[function(require,module,exports){
+},{"../structures/Channel":161,"../structures/Emoji":167,"../structures/Guild":169,"../structures/GuildMember":172,"../structures/Message":174,"../structures/ReactionEmoji":186,"../structures/Role":188,"../structures/User":190,"../util/Constants":200,"../util/Util":203,"buffer":7,"fs":1,"path":26,"snekfetch":207}],58:[function(require,module,exports){
 const Constants = require('../util/Constants');
 const WebSocketConnection = require('./websocket/WebSocketConnection');
 
@@ -14691,7 +16361,7 @@ class ClientManager {
 
 module.exports = ClientManager;
 
-},{"../util/Constants":198,"./websocket/WebSocketConnection":112}],57:[function(require,module,exports){
+},{"../util/Constants":200,"./websocket/WebSocketConnection":114}],59:[function(require,module,exports){
 const Webhook = require('../structures/Webhook');
 const RESTManager = require('./rest/RESTManager');
 const ClientDataResolver = require('./ClientDataResolver');
@@ -14811,7 +16481,7 @@ class WebhookClient extends Webhook {
 
 module.exports = WebhookClient;
 
-},{"../structures/Webhook":193,"../util/Constants":198,"../util/Util":201,"./ClientDataResolver":55,"./rest/RESTManager":90}],58:[function(require,module,exports){
+},{"../structures/Webhook":195,"../util/Constants":200,"../util/Util":203,"./ClientDataResolver":57,"./rest/RESTManager":92}],60:[function(require,module,exports){
 /*
 
 ABOUT ACTIONS
@@ -14836,7 +16506,7 @@ class GenericAction {
 
 module.exports = GenericAction;
 
-},{}],59:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 class ActionsManager {
   constructor(client) {
     this.client = client;
@@ -14878,7 +16548,7 @@ class ActionsManager {
 
 module.exports = ActionsManager;
 
-},{"./ChannelCreate":60,"./ChannelDelete":61,"./ChannelUpdate":62,"./GuildBanRemove":63,"./GuildChannelsPositionUpdate":64,"./GuildDelete":65,"./GuildEmojiCreate":66,"./GuildEmojiDelete":67,"./GuildEmojiUpdate":68,"./GuildEmojisUpdate":69,"./GuildMemberGet":70,"./GuildMemberRemove":71,"./GuildRoleCreate":72,"./GuildRoleDelete":73,"./GuildRoleUpdate":74,"./GuildRolesPositionUpdate":75,"./GuildSync":76,"./GuildUpdate":77,"./MessageCreate":78,"./MessageDelete":79,"./MessageDeleteBulk":80,"./MessageReactionAdd":81,"./MessageReactionRemove":82,"./MessageReactionRemoveAll":83,"./MessageUpdate":84,"./UserGet":85,"./UserNoteUpdate":86,"./UserUpdate":87}],60:[function(require,module,exports){
+},{"./ChannelCreate":62,"./ChannelDelete":63,"./ChannelUpdate":64,"./GuildBanRemove":65,"./GuildChannelsPositionUpdate":66,"./GuildDelete":67,"./GuildEmojiCreate":68,"./GuildEmojiDelete":69,"./GuildEmojiUpdate":70,"./GuildEmojisUpdate":71,"./GuildMemberGet":72,"./GuildMemberRemove":73,"./GuildRoleCreate":74,"./GuildRoleDelete":75,"./GuildRoleUpdate":76,"./GuildRolesPositionUpdate":77,"./GuildSync":78,"./GuildUpdate":79,"./MessageCreate":80,"./MessageDelete":81,"./MessageDeleteBulk":82,"./MessageReactionAdd":83,"./MessageReactionRemove":84,"./MessageReactionRemoveAll":85,"./MessageUpdate":86,"./UserGet":87,"./UserNoteUpdate":88,"./UserUpdate":89}],62:[function(require,module,exports){
 const Action = require('./Action');
 
 class ChannelCreateAction extends Action {
@@ -14891,7 +16561,7 @@ class ChannelCreateAction extends Action {
 
 module.exports = ChannelCreateAction;
 
-},{"./Action":58}],61:[function(require,module,exports){
+},{"./Action":60}],63:[function(require,module,exports){
 const Action = require('./Action');
 
 class ChannelDeleteAction extends Action {
@@ -14923,7 +16593,7 @@ class ChannelDeleteAction extends Action {
 
 module.exports = ChannelDeleteAction;
 
-},{"./Action":58}],62:[function(require,module,exports){
+},{"./Action":60}],64:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 const Util = require('../../util/Util');
@@ -14959,7 +16629,7 @@ class ChannelUpdateAction extends Action {
 
 module.exports = ChannelUpdateAction;
 
-},{"../../util/Constants":198,"../../util/Util":201,"./Action":58}],63:[function(require,module,exports){
+},{"../../util/Constants":200,"../../util/Util":203,"./Action":60}],65:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -14974,7 +16644,7 @@ class GuildBanRemove extends Action {
 
 module.exports = GuildBanRemove;
 
-},{"../../util/Constants":198,"./Action":58}],64:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],66:[function(require,module,exports){
 const Action = require('./Action');
 
 class GuildChannelsPositionUpdate extends Action {
@@ -14995,7 +16665,7 @@ class GuildChannelsPositionUpdate extends Action {
 
 module.exports = GuildChannelsPositionUpdate;
 
-},{"./Action":58}],65:[function(require,module,exports){
+},{"./Action":60}],67:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15054,7 +16724,7 @@ class GuildDeleteAction extends Action {
 
 module.exports = GuildDeleteAction;
 
-},{"../../util/Constants":198,"./Action":58}],66:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],68:[function(require,module,exports){
 const Action = require('./Action');
 
 class GuildEmojiCreateAction extends Action {
@@ -15073,7 +16743,7 @@ class GuildEmojiCreateAction extends Action {
 
 module.exports = GuildEmojiCreateAction;
 
-},{"./Action":58}],67:[function(require,module,exports){
+},{"./Action":60}],69:[function(require,module,exports){
 const Action = require('./Action');
 
 class GuildEmojiDeleteAction extends Action {
@@ -15093,7 +16763,7 @@ class GuildEmojiDeleteAction extends Action {
 
 module.exports = GuildEmojiDeleteAction;
 
-},{"./Action":58}],68:[function(require,module,exports){
+},{"./Action":60}],70:[function(require,module,exports){
 const Action = require('./Action');
 
 class GuildEmojiUpdateAction extends Action {
@@ -15112,7 +16782,7 @@ class GuildEmojiUpdateAction extends Action {
 
 module.exports = GuildEmojiUpdateAction;
 
-},{"./Action":58}],69:[function(require,module,exports){
+},{"./Action":60}],71:[function(require,module,exports){
 const Action = require('./Action');
 
 function mappify(iterable) {
@@ -15152,7 +16822,7 @@ class GuildEmojisUpdateAction extends Action {
 
 module.exports = GuildEmojisUpdateAction;
 
-},{"./Action":58}],70:[function(require,module,exports){
+},{"./Action":60}],72:[function(require,module,exports){
 const Action = require('./Action');
 
 class GuildMemberGetAction extends Action {
@@ -15164,7 +16834,7 @@ class GuildMemberGetAction extends Action {
 
 module.exports = GuildMemberGetAction;
 
-},{"./Action":58}],71:[function(require,module,exports){
+},{"./Action":60}],73:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15207,7 +16877,7 @@ class GuildMemberRemoveAction extends Action {
 
 module.exports = GuildMemberRemoveAction;
 
-},{"../../util/Constants":198,"./Action":58}],72:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],74:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 const Role = require('../../structures/Role');
@@ -15235,7 +16905,7 @@ class GuildRoleCreate extends Action {
 
 module.exports = GuildRoleCreate;
 
-},{"../../structures/Role":186,"../../util/Constants":198,"./Action":58}],73:[function(require,module,exports){
+},{"../../structures/Role":188,"../../util/Constants":200,"./Action":60}],75:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15279,7 +16949,7 @@ class GuildRoleDeleteAction extends Action {
 
 module.exports = GuildRoleDeleteAction;
 
-},{"../../util/Constants":198,"./Action":58}],74:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],76:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 const Util = require('../../util/Util');
@@ -15322,7 +16992,7 @@ class GuildRoleUpdateAction extends Action {
 
 module.exports = GuildRoleUpdateAction;
 
-},{"../../util/Constants":198,"../../util/Util":201,"./Action":58}],75:[function(require,module,exports){
+},{"../../util/Constants":200,"../../util/Util":203,"./Action":60}],77:[function(require,module,exports){
 const Action = require('./Action');
 
 class GuildRolesPositionUpdate extends Action {
@@ -15343,7 +17013,7 @@ class GuildRolesPositionUpdate extends Action {
 
 module.exports = GuildRolesPositionUpdate;
 
-},{"./Action":58}],76:[function(require,module,exports){
+},{"./Action":60}],78:[function(require,module,exports){
 const Action = require('./Action');
 
 class GuildSync extends Action {
@@ -15374,7 +17044,7 @@ class GuildSync extends Action {
 
 module.exports = GuildSync;
 
-},{"./Action":58}],77:[function(require,module,exports){
+},{"./Action":60}],79:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 const Util = require('../../util/Util');
@@ -15410,7 +17080,7 @@ class GuildUpdateAction extends Action {
 
 module.exports = GuildUpdateAction;
 
-},{"../../util/Constants":198,"../../util/Util":201,"./Action":58}],78:[function(require,module,exports){
+},{"../../util/Constants":200,"../../util/Util":203,"./Action":60}],80:[function(require,module,exports){
 const Action = require('./Action');
 const Message = require('../../structures/Message');
 
@@ -15467,7 +17137,7 @@ class MessageCreateAction extends Action {
 
 module.exports = MessageCreateAction;
 
-},{"../../structures/Message":172,"./Action":58}],79:[function(require,module,exports){
+},{"../../structures/Message":174,"./Action":60}],81:[function(require,module,exports){
 const Action = require('./Action');
 
 class MessageDeleteAction extends Action {
@@ -15504,7 +17174,7 @@ class MessageDeleteAction extends Action {
 
 module.exports = MessageDeleteAction;
 
-},{"./Action":58}],80:[function(require,module,exports){
+},{"./Action":60}],82:[function(require,module,exports){
 const Action = require('./Action');
 const Collection = require('../../util/Collection');
 const Constants = require('../../util/Constants');
@@ -15532,7 +17202,7 @@ class MessageDeleteBulkAction extends Action {
 
 module.exports = MessageDeleteBulkAction;
 
-},{"../../util/Collection":197,"../../util/Constants":198,"./Action":58}],81:[function(require,module,exports){
+},{"../../util/Collection":199,"../../util/Constants":200,"./Action":60}],83:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15571,7 +17241,7 @@ class MessageReactionAdd extends Action {
 
 module.exports = MessageReactionAdd;
 
-},{"../../util/Constants":198,"./Action":58}],82:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],84:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15610,7 +17280,7 @@ class MessageReactionRemove extends Action {
 
 module.exports = MessageReactionRemove;
 
-},{"../../util/Constants":198,"./Action":58}],83:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],85:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15637,7 +17307,7 @@ class MessageReactionRemoveAll extends Action {
 
 module.exports = MessageReactionRemoveAll;
 
-},{"../../util/Constants":198,"./Action":58}],84:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],86:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15679,7 +17349,7 @@ class MessageUpdateAction extends Action {
 
 module.exports = MessageUpdateAction;
 
-},{"../../util/Constants":198,"./Action":58}],85:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],87:[function(require,module,exports){
 const Action = require('./Action');
 
 class UserGetAction extends Action {
@@ -15692,7 +17362,7 @@ class UserGetAction extends Action {
 
 module.exports = UserGetAction;
 
-},{"./Action":58}],86:[function(require,module,exports){
+},{"./Action":60}],88:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 
@@ -15724,7 +17394,7 @@ class UserNoteUpdateAction extends Action {
 
 module.exports = UserNoteUpdateAction;
 
-},{"../../util/Constants":198,"./Action":58}],87:[function(require,module,exports){
+},{"../../util/Constants":200,"./Action":60}],89:[function(require,module,exports){
 const Action = require('./Action');
 const Constants = require('../../util/Constants');
 const Util = require('../../util/Util');
@@ -15759,7 +17429,7 @@ class UserUpdateAction extends Action {
 
 module.exports = UserUpdateAction;
 
-},{"../../util/Constants":198,"../../util/Util":201,"./Action":58}],88:[function(require,module,exports){
+},{"../../util/Constants":200,"../../util/Util":203,"./Action":60}],90:[function(require,module,exports){
 const snekfetch = require('snekfetch');
 const Constants = require('../../util/Constants');
 
@@ -15813,7 +17483,7 @@ class APIRequest {
 
 module.exports = APIRequest;
 
-},{"../../util/Constants":198,"snekfetch":203}],89:[function(require,module,exports){
+},{"../../util/Constants":200,"snekfetch":207}],91:[function(require,module,exports){
 /**
  * Represents an error from the Discord API.
  * @extends Error
@@ -15875,7 +17545,7 @@ class DiscordAPIError extends Error {
 
 module.exports = DiscordAPIError;
 
-},{}],90:[function(require,module,exports){
+},{}],92:[function(require,module,exports){
 const UserAgentManager = require('./UserAgentManager');
 const RESTMethods = require('./RESTMethods');
 const SequentialRequestHandler = require('./RequestHandlers/Sequential');
@@ -15934,7 +17604,7 @@ class RESTManager {
 
 module.exports = RESTManager;
 
-},{"../../util/Constants":198,"./APIRequest":88,"./RESTMethods":91,"./RequestHandlers/Burst":92,"./RequestHandlers/Sequential":94,"./UserAgentManager":95}],91:[function(require,module,exports){
+},{"../../util/Constants":200,"./APIRequest":90,"./RESTMethods":93,"./RequestHandlers/Burst":94,"./RequestHandlers/Sequential":96,"./UserAgentManager":97}],93:[function(require,module,exports){
 const querystring = require('querystring');
 const long = require('long');
 const Permissions = require('../../util/Permissions');
@@ -16885,7 +18555,7 @@ class RESTMethods {
 
 module.exports = RESTMethods;
 
-},{"../../structures/Channel":159,"../../structures/GroupDMChannel":166,"../../structures/Guild":167,"../../structures/GuildAuditLogs":168,"../../structures/GuildMember":170,"../../structures/Invite":171,"../../structures/Message":172,"../../structures/OAuth2Application":178,"../../structures/RichEmbed":185,"../../structures/Role":186,"../../structures/User":188,"../../structures/UserProfile":190,"../../structures/VoiceRegion":192,"../../structures/Webhook":193,"../../structures/shared/resolvePermissions":196,"../../util/Collection":197,"../../util/Constants":198,"../../util/Permissions":199,"../../util/Util":201,"long":202,"querystring":31}],92:[function(require,module,exports){
+},{"../../structures/Channel":161,"../../structures/GroupDMChannel":168,"../../structures/Guild":169,"../../structures/GuildAuditLogs":170,"../../structures/GuildMember":172,"../../structures/Invite":173,"../../structures/Message":174,"../../structures/OAuth2Application":180,"../../structures/RichEmbed":187,"../../structures/Role":188,"../../structures/User":190,"../../structures/UserProfile":192,"../../structures/VoiceRegion":194,"../../structures/Webhook":195,"../../structures/shared/resolvePermissions":198,"../../util/Collection":199,"../../util/Constants":200,"../../util/Permissions":201,"../../util/Util":203,"long":53,"querystring":31}],94:[function(require,module,exports){
 const RequestHandler = require('./RequestHandler');
 const DiscordAPIError = require('../DiscordAPIError');
 const { Events: { RATE_LIMIT } } = require('../../../util/Constants');
@@ -16971,7 +18641,7 @@ class BurstRequestHandler extends RequestHandler {
 
 module.exports = BurstRequestHandler;
 
-},{"../../../util/Constants":198,"../DiscordAPIError":89,"./RequestHandler":93}],93:[function(require,module,exports){
+},{"../../../util/Constants":200,"../DiscordAPIError":91,"./RequestHandler":95}],95:[function(require,module,exports){
 /**
  * A base class for different types of rate limiting handlers for the REST API.
  * @private
@@ -17027,7 +18697,7 @@ class RequestHandler {
 
 module.exports = RequestHandler;
 
-},{}],94:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 const RequestHandler = require('./RequestHandler');
 const DiscordAPIError = require('../DiscordAPIError');
 const { Events: { RATE_LIMIT } } = require('../../../util/Constants');
@@ -17155,7 +18825,7 @@ class SequentialRequestHandler extends RequestHandler {
 
 module.exports = SequentialRequestHandler;
 
-},{"../../../util/Constants":198,"../DiscordAPIError":89,"./RequestHandler":93}],95:[function(require,module,exports){
+},{"../../../util/Constants":200,"../DiscordAPIError":91,"./RequestHandler":95}],97:[function(require,module,exports){
 (function (process){
 const Constants = require('../../util/Constants');
 
@@ -17184,7 +18854,7 @@ UserAgentManager.DEFAULT = {
 module.exports = UserAgentManager;
 
 }).call(this,require('_process'))
-},{"../../util/Constants":198,"_process":28}],96:[function(require,module,exports){
+},{"../../util/Constants":200,"_process":28}],98:[function(require,module,exports){
 const Collection = require('../../util/Collection');
 const VoiceConnection = require('./VoiceConnection');
 
@@ -17267,7 +18937,7 @@ class ClientVoiceManager {
 
 module.exports = ClientVoiceManager;
 
-},{"../../util/Collection":197,"./VoiceConnection":98}],97:[function(require,module,exports){
+},{"../../util/Collection":199,"./VoiceConnection":100}],99:[function(require,module,exports){
 (function (Buffer){
 const VolumeInterface = require('./util/VolumeInterface');
 const Prism = require('prism-media');
@@ -17637,7 +19307,7 @@ class VoiceBroadcast extends VolumeInterface {
 module.exports = VoiceBroadcast;
 
 }).call(this,require("buffer").Buffer)
-},{"../../util/Collection":197,"./opus/OpusEngineList":104,"./util/VolumeInterface":111,"buffer":7,"prism-media":4}],98:[function(require,module,exports){
+},{"../../util/Collection":199,"./opus/OpusEngineList":106,"./util/VolumeInterface":113,"buffer":7,"prism-media":4}],100:[function(require,module,exports){
 const VoiceWebSocket = require('./VoiceWebSocket');
 const VoiceUDP = require('./VoiceUDPClient');
 const Util = require('../../util/Util');
@@ -18169,7 +19839,7 @@ class VoiceConnection extends EventEmitter {
 
 module.exports = VoiceConnection;
 
-},{"../../util/Constants":198,"../../util/Util":201,"./VoiceUDPClient":99,"./VoiceWebSocket":100,"./player/AudioPlayer":106,"./receiver/VoiceReceiver":108,"events":9,"prism-media":4}],99:[function(require,module,exports){
+},{"../../util/Constants":200,"../../util/Util":203,"./VoiceUDPClient":101,"./VoiceWebSocket":102,"./player/AudioPlayer":108,"./receiver/VoiceReceiver":110,"events":9,"prism-media":4}],101:[function(require,module,exports){
 (function (Buffer){
 const udp = require('dgram');
 const Constants = require('../../util/Constants');
@@ -18300,7 +19970,7 @@ function parseLocalPacket(message) {
 module.exports = VoiceConnectionUDPClient;
 
 }).call(this,require("buffer").Buffer)
-},{"../../util/Constants":198,"buffer":7,"dgram":1,"events":9}],100:[function(require,module,exports){
+},{"../../util/Constants":200,"buffer":7,"dgram":1,"events":9}],102:[function(require,module,exports){
 const Constants = require('../../util/Constants');
 const SecretKey = require('./util/SecretKey');
 const EventEmitter = require('events').EventEmitter;
@@ -18548,7 +20218,7 @@ class VoiceWebSocket extends EventEmitter {
 
 module.exports = VoiceWebSocket;
 
-},{"../../util/Constants":198,"./util/SecretKey":109,"events":9,"uws":4,"ws":4}],101:[function(require,module,exports){
+},{"../../util/Constants":200,"./util/SecretKey":111,"events":9,"uws":4,"ws":4}],103:[function(require,module,exports){
 (function (process,Buffer){
 const VolumeInterface = require('../util/VolumeInterface');
 const VoiceBroadcast = require('../VoiceBroadcast');
@@ -18883,7 +20553,7 @@ class StreamDispatcher extends VolumeInterface {
 module.exports = StreamDispatcher;
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"../../../util/Constants":198,"../VoiceBroadcast":97,"../util/Secretbox":110,"../util/VolumeInterface":111,"_process":28,"buffer":7}],102:[function(require,module,exports){
+},{"../../../util/Constants":200,"../VoiceBroadcast":99,"../util/Secretbox":112,"../util/VolumeInterface":113,"_process":28,"buffer":7}],104:[function(require,module,exports){
 /**
  * The base opus encoding engine.
  * @private
@@ -18945,7 +20615,7 @@ class BaseOpus {
 
 module.exports = BaseOpus;
 
-},{}],103:[function(require,module,exports){
+},{}],105:[function(require,module,exports){
 const OpusEngine = require('./BaseOpusEngine');
 
 let opus;
@@ -18987,7 +20657,7 @@ class NodeOpusEngine extends OpusEngine {
 
 module.exports = NodeOpusEngine;
 
-},{"./BaseOpusEngine":102,"node-opus":4}],104:[function(require,module,exports){
+},{"./BaseOpusEngine":104,"node-opus":4}],106:[function(require,module,exports){
 const list = [
   require('./NodeOpusEngine'),
   require('./OpusScriptEngine'),
@@ -19017,7 +20687,7 @@ exports.fetch = engineOptions => {
   throw new Error('Couldn\'t find an Opus engine.');
 };
 
-},{"./NodeOpusEngine":103,"./OpusScriptEngine":105}],105:[function(require,module,exports){
+},{"./NodeOpusEngine":105,"./OpusScriptEngine":107}],107:[function(require,module,exports){
 const OpusEngine = require('./BaseOpusEngine');
 
 let OpusScript;
@@ -19064,7 +20734,7 @@ class OpusScriptEngine extends OpusEngine {
 
 module.exports = OpusScriptEngine;
 
-},{"./BaseOpusEngine":102,"opusscript":4}],106:[function(require,module,exports){
+},{"./BaseOpusEngine":104,"opusscript":4}],108:[function(require,module,exports){
 const EventEmitter = require('events').EventEmitter;
 const Prism = require('prism-media');
 const StreamDispatcher = require('../dispatcher/StreamDispatcher');
@@ -19236,7 +20906,7 @@ class AudioPlayer extends EventEmitter {
 
 module.exports = AudioPlayer;
 
-},{"../../../util/Collection":197,"../dispatcher/StreamDispatcher":101,"../opus/OpusEngineList":104,"events":9,"prism-media":4}],107:[function(require,module,exports){
+},{"../../../util/Collection":199,"../dispatcher/StreamDispatcher":103,"../opus/OpusEngineList":106,"events":9,"prism-media":4}],109:[function(require,module,exports){
 const Readable = require('stream').Readable;
 
 class VoiceReadable extends Readable {
@@ -19255,7 +20925,7 @@ class VoiceReadable extends Readable {
 
 module.exports = VoiceReadable;
 
-},{"stream":47}],108:[function(require,module,exports){
+},{"stream":47}],110:[function(require,module,exports){
 (function (Buffer){
 const EventEmitter = require('events').EventEmitter;
 const secretbox = require('../util/Secretbox');
@@ -19478,7 +21148,7 @@ class VoiceReceiver extends EventEmitter {
 module.exports = VoiceReceiver;
 
 }).call(this,require("buffer").Buffer)
-},{"../opus/OpusEngineList":104,"../util/Secretbox":110,"./VoiceReadable":107,"buffer":7,"events":9}],109:[function(require,module,exports){
+},{"../opus/OpusEngineList":106,"../util/Secretbox":112,"./VoiceReadable":109,"buffer":7,"events":9}],111:[function(require,module,exports){
 /**
  * Represents a Secret Key used in encryption over voice.
  * @private
@@ -19496,7 +21166,7 @@ class SecretKey {
 
 module.exports = SecretKey;
 
-},{}],110:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 const libs = {
   sodium: sodium => ({
     open: sodium.api.crypto_secretbox_open_easy,
@@ -19531,7 +21201,7 @@ for (const libName of Object.keys(libs)) {
   } catch (err) {} // eslint-disable-line no-empty
 }
 
-},{"tweetnacl":4}],111:[function(require,module,exports){
+},{"tweetnacl":4}],113:[function(require,module,exports){
 (function (Buffer){
 const EventEmitter = require('events');
 
@@ -19621,7 +21291,7 @@ class VolumeInterface extends EventEmitter {
 module.exports = VolumeInterface;
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":7,"events":9}],112:[function(require,module,exports){
+},{"buffer":7,"events":9}],114:[function(require,module,exports){
 (function (Buffer){
 const browser = typeof window !== 'undefined';
 const EventEmitter = require('events');
@@ -20131,7 +21801,7 @@ WebSocketConnection.WebSocket = WebSocket;
 module.exports = WebSocketConnection;
 
 }).call(this,require("buffer").Buffer)
-},{"../../util/Constants":198,"./packets/WebSocketPacketManager":114,"buffer":7,"erlpack":4,"events":9,"uws":4,"ws":4,"zlib":6}],113:[function(require,module,exports){
+},{"../../util/Constants":200,"./packets/WebSocketPacketManager":116,"buffer":7,"erlpack":4,"events":9,"uws":4,"ws":4,"zlib":6}],115:[function(require,module,exports){
 const EventEmitter = require('events').EventEmitter;
 const Constants = require('../../util/Constants');
 const WebSocketConnection = require('./WebSocketConnection');
@@ -20223,7 +21893,7 @@ class WebSocketManager extends EventEmitter {
 
 module.exports = WebSocketManager;
 
-},{"../../util/Constants":198,"./WebSocketConnection":112,"events":9}],114:[function(require,module,exports){
+},{"../../util/Constants":200,"./WebSocketConnection":114,"events":9}],116:[function(require,module,exports){
 const Constants = require('../../../util/Constants');
 
 const BeforeReadyWhitelist = [
@@ -20333,7 +22003,7 @@ class WebSocketPacketManager {
 
 module.exports = WebSocketPacketManager;
 
-},{"../../../util/Constants":198,"./handlers/ChannelCreate":116,"./handlers/ChannelDelete":117,"./handlers/ChannelPinsUpdate":118,"./handlers/ChannelUpdate":119,"./handlers/GuildBanAdd":120,"./handlers/GuildBanRemove":121,"./handlers/GuildCreate":122,"./handlers/GuildDelete":123,"./handlers/GuildEmojisUpdate":124,"./handlers/GuildMemberAdd":125,"./handlers/GuildMemberRemove":126,"./handlers/GuildMemberUpdate":127,"./handlers/GuildMembersChunk":128,"./handlers/GuildRoleCreate":129,"./handlers/GuildRoleDelete":130,"./handlers/GuildRoleUpdate":131,"./handlers/GuildSync":132,"./handlers/GuildUpdate":133,"./handlers/MessageCreate":134,"./handlers/MessageDelete":135,"./handlers/MessageDeleteBulk":136,"./handlers/MessageReactionAdd":137,"./handlers/MessageReactionRemove":138,"./handlers/MessageReactionRemoveAll":139,"./handlers/MessageUpdate":140,"./handlers/PresenceUpdate":141,"./handlers/Ready":142,"./handlers/RelationshipAdd":143,"./handlers/RelationshipRemove":144,"./handlers/Resumed":145,"./handlers/TypingStart":146,"./handlers/UserGuildSettingsUpdate":147,"./handlers/UserNoteUpdate":148,"./handlers/UserSettingsUpdate":149,"./handlers/UserUpdate":150,"./handlers/VoiceServerUpdate":151,"./handlers/VoiceStateUpdate":152}],115:[function(require,module,exports){
+},{"../../../util/Constants":200,"./handlers/ChannelCreate":118,"./handlers/ChannelDelete":119,"./handlers/ChannelPinsUpdate":120,"./handlers/ChannelUpdate":121,"./handlers/GuildBanAdd":122,"./handlers/GuildBanRemove":123,"./handlers/GuildCreate":124,"./handlers/GuildDelete":125,"./handlers/GuildEmojisUpdate":126,"./handlers/GuildMemberAdd":127,"./handlers/GuildMemberRemove":128,"./handlers/GuildMemberUpdate":129,"./handlers/GuildMembersChunk":130,"./handlers/GuildRoleCreate":131,"./handlers/GuildRoleDelete":132,"./handlers/GuildRoleUpdate":133,"./handlers/GuildSync":134,"./handlers/GuildUpdate":135,"./handlers/MessageCreate":136,"./handlers/MessageDelete":137,"./handlers/MessageDeleteBulk":138,"./handlers/MessageReactionAdd":139,"./handlers/MessageReactionRemove":140,"./handlers/MessageReactionRemoveAll":141,"./handlers/MessageUpdate":142,"./handlers/PresenceUpdate":143,"./handlers/Ready":144,"./handlers/RelationshipAdd":145,"./handlers/RelationshipRemove":146,"./handlers/Resumed":147,"./handlers/TypingStart":148,"./handlers/UserGuildSettingsUpdate":149,"./handlers/UserNoteUpdate":150,"./handlers/UserSettingsUpdate":151,"./handlers/UserUpdate":152,"./handlers/VoiceServerUpdate":153,"./handlers/VoiceStateUpdate":154}],117:[function(require,module,exports){
 class AbstractHandler {
   constructor(packetManager) {
     this.packetManager = packetManager;
@@ -20346,7 +22016,7 @@ class AbstractHandler {
 
 module.exports = AbstractHandler;
 
-},{}],116:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class ChannelCreateHandler extends AbstractHandler {
@@ -20365,7 +22035,7 @@ class ChannelCreateHandler extends AbstractHandler {
 
 module.exports = ChannelCreateHandler;
 
-},{"./AbstractHandler":115}],117:[function(require,module,exports){
+},{"./AbstractHandler":117}],119:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 const Constants = require('../../../../util/Constants');
@@ -20387,7 +22057,7 @@ class ChannelDeleteHandler extends AbstractHandler {
 
 module.exports = ChannelDeleteHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],118:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],120:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 
@@ -20420,7 +22090,7 @@ class ChannelPinsUpdate extends AbstractHandler {
 
 module.exports = ChannelPinsUpdate;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],119:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],121:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class ChannelUpdateHandler extends AbstractHandler {
@@ -20433,7 +22103,7 @@ class ChannelUpdateHandler extends AbstractHandler {
 
 module.exports = ChannelUpdateHandler;
 
-},{"./AbstractHandler":115}],120:[function(require,module,exports){
+},{"./AbstractHandler":117}],122:[function(require,module,exports){
 // ##untested handler##
 
 const AbstractHandler = require('./AbstractHandler');
@@ -20458,7 +22128,7 @@ class GuildBanAddHandler extends AbstractHandler {
 
 module.exports = GuildBanAddHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],121:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],123:[function(require,module,exports){
 // ##untested handler##
 
 const AbstractHandler = require('./AbstractHandler');
@@ -20480,7 +22150,7 @@ class GuildBanRemoveHandler extends AbstractHandler {
 
 module.exports = GuildBanRemoveHandler;
 
-},{"./AbstractHandler":115}],122:[function(require,module,exports){
+},{"./AbstractHandler":117}],124:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class GuildCreateHandler extends AbstractHandler {
@@ -20504,7 +22174,7 @@ class GuildCreateHandler extends AbstractHandler {
 
 module.exports = GuildCreateHandler;
 
-},{"./AbstractHandler":115}],123:[function(require,module,exports){
+},{"./AbstractHandler":117}],125:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 
@@ -20525,7 +22195,7 @@ class GuildDeleteHandler extends AbstractHandler {
 
 module.exports = GuildDeleteHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],124:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],126:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class GuildEmojisUpdate extends AbstractHandler {
@@ -20538,7 +22208,7 @@ class GuildEmojisUpdate extends AbstractHandler {
 
 module.exports = GuildEmojisUpdate;
 
-},{"./AbstractHandler":115}],125:[function(require,module,exports){
+},{"./AbstractHandler":117}],127:[function(require,module,exports){
 // ##untested handler##
 
 const AbstractHandler = require('./AbstractHandler');
@@ -20557,7 +22227,7 @@ class GuildMemberAddHandler extends AbstractHandler {
 
 module.exports = GuildMemberAddHandler;
 
-},{"./AbstractHandler":115}],126:[function(require,module,exports){
+},{"./AbstractHandler":117}],128:[function(require,module,exports){
 // ##untested handler##
 
 const AbstractHandler = require('./AbstractHandler');
@@ -20572,7 +22242,7 @@ class GuildMemberRemoveHandler extends AbstractHandler {
 
 module.exports = GuildMemberRemoveHandler;
 
-},{"./AbstractHandler":115}],127:[function(require,module,exports){
+},{"./AbstractHandler":117}],129:[function(require,module,exports){
 // ##untested handler##
 
 const AbstractHandler = require('./AbstractHandler');
@@ -20592,7 +22262,7 @@ class GuildMemberUpdateHandler extends AbstractHandler {
 
 module.exports = GuildMemberUpdateHandler;
 
-},{"./AbstractHandler":115}],128:[function(require,module,exports){
+},{"./AbstractHandler":117}],130:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 // Uncomment in v12
@@ -20627,7 +22297,7 @@ class GuildMembersChunkHandler extends AbstractHandler {
 
 module.exports = GuildMembersChunkHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],129:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],131:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class GuildRoleCreateHandler extends AbstractHandler {
@@ -20640,7 +22310,7 @@ class GuildRoleCreateHandler extends AbstractHandler {
 
 module.exports = GuildRoleCreateHandler;
 
-},{"./AbstractHandler":115}],130:[function(require,module,exports){
+},{"./AbstractHandler":117}],132:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class GuildRoleDeleteHandler extends AbstractHandler {
@@ -20653,7 +22323,7 @@ class GuildRoleDeleteHandler extends AbstractHandler {
 
 module.exports = GuildRoleDeleteHandler;
 
-},{"./AbstractHandler":115}],131:[function(require,module,exports){
+},{"./AbstractHandler":117}],133:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class GuildRoleUpdateHandler extends AbstractHandler {
@@ -20666,7 +22336,7 @@ class GuildRoleUpdateHandler extends AbstractHandler {
 
 module.exports = GuildRoleUpdateHandler;
 
-},{"./AbstractHandler":115}],132:[function(require,module,exports){
+},{"./AbstractHandler":117}],134:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class GuildSyncHandler extends AbstractHandler {
@@ -20679,7 +22349,7 @@ class GuildSyncHandler extends AbstractHandler {
 
 module.exports = GuildSyncHandler;
 
-},{"./AbstractHandler":115}],133:[function(require,module,exports){
+},{"./AbstractHandler":117}],135:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class GuildUpdateHandler extends AbstractHandler {
@@ -20692,7 +22362,7 @@ class GuildUpdateHandler extends AbstractHandler {
 
 module.exports = GuildUpdateHandler;
 
-},{"./AbstractHandler":115}],134:[function(require,module,exports){
+},{"./AbstractHandler":117}],136:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 
@@ -20713,7 +22383,7 @@ class MessageCreateHandler extends AbstractHandler {
 
 module.exports = MessageCreateHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],135:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],137:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 
@@ -20734,7 +22404,7 @@ class MessageDeleteHandler extends AbstractHandler {
 
 module.exports = MessageDeleteHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],136:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],138:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class MessageDeleteBulkHandler extends AbstractHandler {
@@ -20753,7 +22423,7 @@ class MessageDeleteBulkHandler extends AbstractHandler {
 
 module.exports = MessageDeleteBulkHandler;
 
-},{"./AbstractHandler":115}],137:[function(require,module,exports){
+},{"./AbstractHandler":117}],139:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class MessageReactionAddHandler extends AbstractHandler {
@@ -20766,7 +22436,7 @@ class MessageReactionAddHandler extends AbstractHandler {
 
 module.exports = MessageReactionAddHandler;
 
-},{"./AbstractHandler":115}],138:[function(require,module,exports){
+},{"./AbstractHandler":117}],140:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class MessageReactionRemove extends AbstractHandler {
@@ -20779,7 +22449,7 @@ class MessageReactionRemove extends AbstractHandler {
 
 module.exports = MessageReactionRemove;
 
-},{"./AbstractHandler":115}],139:[function(require,module,exports){
+},{"./AbstractHandler":117}],141:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class MessageReactionRemoveAll extends AbstractHandler {
@@ -20792,7 +22462,7 @@ class MessageReactionRemoveAll extends AbstractHandler {
 
 module.exports = MessageReactionRemoveAll;
 
-},{"./AbstractHandler":115}],140:[function(require,module,exports){
+},{"./AbstractHandler":117}],142:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class MessageUpdateHandler extends AbstractHandler {
@@ -20805,7 +22475,7 @@ class MessageUpdateHandler extends AbstractHandler {
 
 module.exports = MessageUpdateHandler;
 
-},{"./AbstractHandler":115}],141:[function(require,module,exports){
+},{"./AbstractHandler":117}],143:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 const Util = require('../../../../util/Util');
@@ -20883,7 +22553,7 @@ class PresenceUpdateHandler extends AbstractHandler {
 
 module.exports = PresenceUpdateHandler;
 
-},{"../../../../util/Constants":198,"../../../../util/Util":201,"./AbstractHandler":115}],142:[function(require,module,exports){
+},{"../../../../util/Constants":200,"../../../../util/Util":203,"./AbstractHandler":117}],144:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 const ClientUser = require('../../../../structures/ClientUser');
@@ -20968,7 +22638,7 @@ class ReadyHandler extends AbstractHandler {
 
 module.exports = ReadyHandler;
 
-},{"../../../../structures/ClientUser":160,"./AbstractHandler":115}],143:[function(require,module,exports){
+},{"../../../../structures/ClientUser":162,"./AbstractHandler":117}],145:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class RelationshipAddHandler extends AbstractHandler {
@@ -20989,7 +22659,7 @@ class RelationshipAddHandler extends AbstractHandler {
 
 module.exports = RelationshipAddHandler;
 
-},{"./AbstractHandler":115}],144:[function(require,module,exports){
+},{"./AbstractHandler":117}],146:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class RelationshipRemoveHandler extends AbstractHandler {
@@ -21010,7 +22680,7 @@ class RelationshipRemoveHandler extends AbstractHandler {
 
 module.exports = RelationshipRemoveHandler;
 
-},{"./AbstractHandler":115}],145:[function(require,module,exports){
+},{"./AbstractHandler":117}],147:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 
@@ -21040,7 +22710,7 @@ class ResumedHandler extends AbstractHandler {
 
 module.exports = ResumedHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],146:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],148:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 
@@ -21110,7 +22780,7 @@ function tooLate(channel, user) {
 
 module.exports = TypingStartHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],147:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],149:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 const ClientUserGuildSettings = require('../../../../structures/ClientUserGuildSettings');
@@ -21133,7 +22803,7 @@ class UserGuildSettingsUpdateHandler extends AbstractHandler {
 
 module.exports = UserGuildSettingsUpdateHandler;
 
-},{"../../../../structures/ClientUserGuildSettings":162,"../../../../util/Constants":198,"./AbstractHandler":115}],148:[function(require,module,exports){
+},{"../../../../structures/ClientUserGuildSettings":164,"../../../../util/Constants":200,"./AbstractHandler":117}],150:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class UserNoteUpdateHandler extends AbstractHandler {
@@ -21147,7 +22817,7 @@ class UserNoteUpdateHandler extends AbstractHandler {
 
 module.exports = UserNoteUpdateHandler;
 
-},{"./AbstractHandler":115}],149:[function(require,module,exports){
+},{"./AbstractHandler":117}],151:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 const Constants = require('../../../../util/Constants');
 
@@ -21167,7 +22837,7 @@ class UserSettingsUpdateHandler extends AbstractHandler {
 
 module.exports = UserSettingsUpdateHandler;
 
-},{"../../../../util/Constants":198,"./AbstractHandler":115}],150:[function(require,module,exports){
+},{"../../../../util/Constants":200,"./AbstractHandler":117}],152:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 class UserUpdateHandler extends AbstractHandler {
@@ -21180,7 +22850,7 @@ class UserUpdateHandler extends AbstractHandler {
 
 module.exports = UserUpdateHandler;
 
-},{"./AbstractHandler":115}],151:[function(require,module,exports){
+},{"./AbstractHandler":117}],153:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 /*
@@ -21201,7 +22871,7 @@ class VoiceServerUpdate extends AbstractHandler {
 
 module.exports = VoiceServerUpdate;
 
-},{"./AbstractHandler":115}],152:[function(require,module,exports){
+},{"./AbstractHandler":117}],154:[function(require,module,exports){
 const AbstractHandler = require('./AbstractHandler');
 
 const Constants = require('../../../../util/Constants');
@@ -21255,7 +22925,7 @@ class VoiceStateUpdateHandler extends AbstractHandler {
 
 module.exports = VoiceStateUpdateHandler;
 
-},{"../../../../util/Constants":198,"../../../../util/Util":201,"./AbstractHandler":115}],153:[function(require,module,exports){
+},{"../../../../util/Constants":200,"../../../../util/Util":203,"./AbstractHandler":117}],155:[function(require,module,exports){
 const Util = require('./util/Util');
 
 module.exports = {
@@ -21321,7 +22991,7 @@ module.exports = {
   Webhook: require('./structures/Webhook'),
 };
 
-},{"../package":52,"./client/Client":53,"./client/WebhookClient":57,"./client/rest/DiscordAPIError":89,"./sharding/Shard":154,"./sharding/ShardClientUtil":155,"./sharding/ShardingManager":156,"./structures/Attachment":157,"./structures/CategoryChannel":158,"./structures/Channel":159,"./structures/ClientUser":160,"./structures/ClientUserSettings":163,"./structures/DMChannel":164,"./structures/Emoji":165,"./structures/GroupDMChannel":166,"./structures/Guild":167,"./structures/GuildAuditLogs":168,"./structures/GuildChannel":169,"./structures/GuildMember":170,"./structures/Invite":171,"./structures/Message":172,"./structures/MessageAttachment":173,"./structures/MessageCollector":174,"./structures/MessageEmbed":175,"./structures/MessageMentions":176,"./structures/MessageReaction":177,"./structures/OAuth2Application":178,"./structures/PartialGuild":179,"./structures/PartialGuildChannel":180,"./structures/PermissionOverwrites":181,"./structures/Presence":182,"./structures/ReactionCollector":183,"./structures/ReactionEmoji":184,"./structures/RichEmbed":185,"./structures/Role":186,"./structures/TextChannel":187,"./structures/User":188,"./structures/VoiceChannel":191,"./structures/Webhook":193,"./structures/interfaces/Collector":194,"./util/Collection":197,"./util/Constants":198,"./util/Permissions":199,"./util/Snowflake":200,"./util/Util":201}],154:[function(require,module,exports){
+},{"../package":54,"./client/Client":55,"./client/WebhookClient":59,"./client/rest/DiscordAPIError":91,"./sharding/Shard":156,"./sharding/ShardClientUtil":157,"./sharding/ShardingManager":158,"./structures/Attachment":159,"./structures/CategoryChannel":160,"./structures/Channel":161,"./structures/ClientUser":162,"./structures/ClientUserSettings":165,"./structures/DMChannel":166,"./structures/Emoji":167,"./structures/GroupDMChannel":168,"./structures/Guild":169,"./structures/GuildAuditLogs":170,"./structures/GuildChannel":171,"./structures/GuildMember":172,"./structures/Invite":173,"./structures/Message":174,"./structures/MessageAttachment":175,"./structures/MessageCollector":176,"./structures/MessageEmbed":177,"./structures/MessageMentions":178,"./structures/MessageReaction":179,"./structures/OAuth2Application":180,"./structures/PartialGuild":181,"./structures/PartialGuildChannel":182,"./structures/PermissionOverwrites":183,"./structures/Presence":184,"./structures/ReactionCollector":185,"./structures/ReactionEmoji":186,"./structures/RichEmbed":187,"./structures/Role":188,"./structures/TextChannel":189,"./structures/User":190,"./structures/VoiceChannel":193,"./structures/Webhook":195,"./structures/interfaces/Collector":196,"./util/Collection":199,"./util/Constants":200,"./util/Permissions":201,"./util/Snowflake":202,"./util/Util":203}],156:[function(require,module,exports){
 (function (process){
 const childProcess = require('child_process');
 const EventEmitter = require('events');
@@ -21607,7 +23277,7 @@ class Shard extends EventEmitter {
 module.exports = Shard;
 
 }).call(this,require('_process'))
-},{"../util/Util":201,"_process":28,"child_process":1,"events":9,"path":26}],155:[function(require,module,exports){
+},{"../util/Util":203,"_process":28,"child_process":1,"events":9,"path":26}],157:[function(require,module,exports){
 (function (process){
 const Util = require('../util/Util');
 
@@ -21757,7 +23427,7 @@ class ShardClientUtil {
 module.exports = ShardClientUtil;
 
 }).call(this,require('_process'))
-},{"../util/Util":201,"_process":28}],156:[function(require,module,exports){
+},{"../util/Util":203,"_process":28}],158:[function(require,module,exports){
 (function (process){
 const path = require('path');
 const fs = require('fs');
@@ -21981,7 +23651,7 @@ class ShardingManager extends EventEmitter {
 module.exports = ShardingManager;
 
 }).call(this,require('_process'))
-},{"../util/Collection":197,"../util/Util":201,"./Shard":154,"_process":28,"events":9,"fs":1,"path":26}],157:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Util":203,"./Shard":156,"_process":28,"events":9,"fs":1,"path":26}],159:[function(require,module,exports){
 /**
  * Represents an attachment in a message.
  * @param {BufferResolvable|Stream} file The file
@@ -22058,7 +23728,7 @@ class Attachment {
 
 module.exports = Attachment;
 
-},{}],158:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 const GuildChannel = require('./GuildChannel');
 
 /**
@@ -22082,7 +23752,7 @@ class CategoryChannel extends GuildChannel {
 
 module.exports = CategoryChannel;
 
-},{"./GuildChannel":169}],159:[function(require,module,exports){
+},{"./GuildChannel":171}],161:[function(require,module,exports){
 const Snowflake = require('../util/Snowflake');
 
 /**
@@ -22160,7 +23830,7 @@ class Channel {
 
 module.exports = Channel;
 
-},{"../util/Snowflake":200}],160:[function(require,module,exports){
+},{"../util/Snowflake":202}],162:[function(require,module,exports){
 const User = require('./User');
 const Collection = require('../util/Collection');
 const ClientUserSettings = require('./ClientUserSettings');
@@ -22593,7 +24263,7 @@ ClientUser.prototype.fetchMentions =
 
 module.exports = ClientUser;
 
-},{"../util/Collection":197,"../util/Constants":198,"./ClientUserGuildSettings":162,"./ClientUserSettings":163,"./User":188,"util":51}],161:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Constants":200,"./ClientUserGuildSettings":164,"./ClientUserSettings":165,"./User":190,"util":51}],163:[function(require,module,exports){
 const Constants = require('../util/Constants');
 
 /**
@@ -22625,7 +24295,7 @@ class ClientUserChannelOverride {
 
 module.exports = ClientUserChannelOverride;
 
-},{"../util/Constants":198}],162:[function(require,module,exports){
+},{"../util/Constants":200}],164:[function(require,module,exports){
 const Constants = require('../util/Constants');
 const Collection = require('../util/Collection');
 const ClientUserChannelOverride = require('./ClientUserChannelOverride');
@@ -22687,7 +24357,7 @@ class ClientUserGuildSettings {
 
 module.exports = ClientUserGuildSettings;
 
-},{"../util/Collection":197,"../util/Constants":198,"./ClientUserChannelOverride":161}],163:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Constants":200,"./ClientUserChannelOverride":163}],165:[function(require,module,exports){
 const Constants = require('../util/Constants');
 const Util = require('../util/Util');
 
@@ -22769,7 +24439,7 @@ class ClientUserSettings {
 
 module.exports = ClientUserSettings;
 
-},{"../util/Constants":198,"../util/Util":201}],164:[function(require,module,exports){
+},{"../util/Constants":200,"../util/Util":203}],166:[function(require,module,exports){
 const Channel = require('./Channel');
 const TextBasedChannel = require('./interfaces/TextBasedChannel');
 const Collection = require('../util/Collection');
@@ -22840,7 +24510,7 @@ TextBasedChannel.applyToClass(DMChannel, true, ['bulkDelete']);
 
 module.exports = DMChannel;
 
-},{"../util/Collection":197,"./Channel":159,"./interfaces/TextBasedChannel":195}],165:[function(require,module,exports){
+},{"../util/Collection":199,"./Channel":161,"./interfaces/TextBasedChannel":197}],167:[function(require,module,exports){
 const Constants = require('../util/Constants');
 const Collection = require('../util/Collection');
 const Permissions = require('../util/Permissions');
@@ -23093,7 +24763,7 @@ class Emoji {
 
 module.exports = Emoji;
 
-},{"../util/Collection":197,"../util/Constants":198,"../util/Permissions":199,"../util/Snowflake":200}],166:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Constants":200,"../util/Permissions":201,"../util/Snowflake":202}],168:[function(require,module,exports){
 const Channel = require('./Channel');
 const TextBasedChannel = require('./interfaces/TextBasedChannel');
 const Collection = require('../util/Collection');
@@ -23334,7 +25004,7 @@ TextBasedChannel.applyToClass(GroupDMChannel, true, ['bulkDelete']);
 
 module.exports = GroupDMChannel;
 
-},{"../util/Collection":197,"../util/Constants":198,"./Channel":159,"./interfaces/TextBasedChannel":195}],167:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Constants":200,"./Channel":161,"./interfaces/TextBasedChannel":197}],169:[function(require,module,exports){
 const util = require('util');
 const Long = require('long');
 const User = require('./User');
@@ -24688,7 +26358,7 @@ Guild.prototype.sync =
 
 module.exports = Guild;
 
-},{"../util/Collection":197,"../util/Constants":198,"../util/Snowflake":200,"../util/Util":201,"./Emoji":165,"./GuildMember":170,"./Presence":182,"./Role":186,"./User":188,"long":202,"util":51}],168:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Constants":200,"../util/Snowflake":202,"../util/Util":203,"./Emoji":167,"./GuildMember":172,"./Presence":184,"./Role":188,"./User":190,"long":53,"util":51}],170:[function(require,module,exports){
 const Collection = require('../util/Collection');
 const Snowflake = require('../util/Snowflake');
 const Webhook = require('./Webhook');
@@ -25061,7 +26731,7 @@ GuildAuditLogs.Entry = GuildAuditLogsEntry;
 
 module.exports = GuildAuditLogs;
 
-},{"../util/Collection":197,"../util/Snowflake":200,"./Invite":171,"./Webhook":193}],169:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Snowflake":202,"./Invite":173,"./Webhook":195}],171:[function(require,module,exports){
 const Channel = require('./Channel');
 const Role = require('./Role');
 const PermissionOverwrites = require('./PermissionOverwrites');
@@ -25590,7 +27260,7 @@ class GuildChannel extends Channel {
 
 module.exports = GuildChannel;
 
-},{"../util/Collection":197,"../util/Constants":198,"../util/Permissions":199,"./Channel":159,"./Invite":171,"./PermissionOverwrites":181,"./Role":186}],170:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Constants":200,"../util/Permissions":201,"./Channel":161,"./Invite":173,"./PermissionOverwrites":183,"./Role":188}],172:[function(require,module,exports){
 const TextBasedChannel = require('./interfaces/TextBasedChannel');
 const Role = require('./Role');
 const Permissions = require('../util/Permissions');
@@ -26201,7 +27871,7 @@ GuildMember.prototype.hasPermissions = util.deprecate(GuildMember.prototype.hasP
 
 module.exports = GuildMember;
 
-},{"../util/Collection":197,"../util/Permissions":199,"./Presence":182,"./Role":186,"./interfaces/TextBasedChannel":195,"util":51}],171:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Permissions":201,"./Presence":184,"./Role":188,"./interfaces/TextBasedChannel":197,"util":51}],173:[function(require,module,exports){
 const PartialGuild = require('./PartialGuild');
 const PartialGuildChannel = require('./PartialGuildChannel');
 const Constants = require('../util/Constants');
@@ -26366,7 +28036,7 @@ class Invite {
 
 module.exports = Invite;
 
-},{"../util/Constants":198,"./PartialGuild":179,"./PartialGuildChannel":180}],172:[function(require,module,exports){
+},{"../util/Constants":200,"./PartialGuild":181,"./PartialGuildChannel":182}],174:[function(require,module,exports){
 const Mentions = require('./MessageMentions');
 const Attachment = require('./MessageAttachment');
 const Embed = require('./MessageEmbed');
@@ -26972,7 +28642,7 @@ class Message {
 
 module.exports = Message;
 
-},{"../util/Collection":197,"../util/Constants":198,"../util/Permissions":199,"../util/Util":201,"./GuildMember":170,"./MessageAttachment":173,"./MessageEmbed":175,"./MessageMentions":176,"./MessageReaction":177,"./ReactionCollector":183,"./RichEmbed":185}],173:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Constants":200,"../util/Permissions":201,"../util/Util":203,"./GuildMember":172,"./MessageAttachment":175,"./MessageEmbed":177,"./MessageMentions":178,"./MessageReaction":179,"./ReactionCollector":185,"./RichEmbed":187}],175:[function(require,module,exports){
 /**
  * Represents an attachment in a message.
  */
@@ -27042,7 +28712,7 @@ class MessageAttachment {
 
 module.exports = MessageAttachment;
 
-},{}],174:[function(require,module,exports){
+},{}],176:[function(require,module,exports){
 const Collector = require('./interfaces/Collector');
 const util = require('util');
 
@@ -27144,7 +28814,7 @@ class MessageCollector extends Collector {
 
 module.exports = MessageCollector;
 
-},{"./interfaces/Collector":194,"util":51}],175:[function(require,module,exports){
+},{"./interfaces/Collector":196,"util":51}],177:[function(require,module,exports){
 /**
  * Represents an embed in a message (image/video preview, rich embed, etc.)
  * <info>This class is only used for *recieved* embeds. If you wish to send one, use the {@link RichEmbed} class.</info>
@@ -27532,7 +29202,7 @@ MessageEmbed.Footer = MessageEmbedFooter;
 
 module.exports = MessageEmbed;
 
-},{}],176:[function(require,module,exports){
+},{}],178:[function(require,module,exports){
 const Collection = require('../util/Collection');
 
 /**
@@ -27678,7 +29348,7 @@ MessageMentions.CHANNELS_PATTERN = /<#([0-9]+)>/g;
 
 module.exports = MessageMentions;
 
-},{"../util/Collection":197}],177:[function(require,module,exports){
+},{"../util/Collection":199}],179:[function(require,module,exports){
 const Collection = require('../util/Collection');
 const Emoji = require('./Emoji');
 const ReactionEmoji = require('./ReactionEmoji');
@@ -27776,7 +29446,7 @@ class MessageReaction {
 
 module.exports = MessageReaction;
 
-},{"../util/Collection":197,"./Emoji":165,"./ReactionEmoji":184}],178:[function(require,module,exports){
+},{"../util/Collection":199,"./Emoji":167,"./ReactionEmoji":186}],180:[function(require,module,exports){
 const Snowflake = require('../util/Snowflake');
 const util = require('util');
 
@@ -27925,7 +29595,7 @@ OAuth2Application.prototype.reset =
 
 module.exports = OAuth2Application;
 
-},{"../util/Snowflake":200,"util":51}],179:[function(require,module,exports){
+},{"../util/Snowflake":202,"util":51}],181:[function(require,module,exports){
 /*
 { splash: null,
      id: '123123123',
@@ -27978,7 +29648,7 @@ class PartialGuild {
 
 module.exports = PartialGuild;
 
-},{}],180:[function(require,module,exports){
+},{}],182:[function(require,module,exports){
 const Constants = require('../util/Constants');
 
 /*
@@ -28024,7 +29694,7 @@ class PartialGuildChannel {
 
 module.exports = PartialGuildChannel;
 
-},{"../util/Constants":198}],181:[function(require,module,exports){
+},{"../util/Constants":200}],183:[function(require,module,exports){
 const Permissions = require('../util/Permissions');
 
 /**
@@ -28095,7 +29765,7 @@ class PermissionOverwrites {
 
 module.exports = PermissionOverwrites;
 
-},{"../util/Permissions":199}],182:[function(require,module,exports){
+},{"../util/Permissions":201}],184:[function(require,module,exports){
 const { ActivityFlags, Endpoints } = require('../util/Constants');
 
 /**
@@ -28316,7 +29986,7 @@ exports.Presence = Presence;
 exports.Game = Game;
 exports.RichPresenceAssets = RichPresenceAssets;
 
-},{"../util/Constants":198}],183:[function(require,module,exports){
+},{"../util/Constants":200}],185:[function(require,module,exports){
 const Collector = require('./interfaces/Collector');
 const Collection = require('../util/Collection');
 
@@ -28403,7 +30073,7 @@ class ReactionCollector extends Collector {
 
 module.exports = ReactionCollector;
 
-},{"../util/Collection":197,"./interfaces/Collector":194}],184:[function(require,module,exports){
+},{"../util/Collection":199,"./interfaces/Collector":196}],186:[function(require,module,exports){
 /**
  * Represents a limited emoji set used for both custom and unicode emojis. Custom emojis
  * will use this class opposed to the Emoji class when the client doesn't know enough
@@ -28454,7 +30124,7 @@ class ReactionEmoji {
 
 module.exports = ReactionEmoji;
 
-},{}],185:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 const Attachment = require('./Attachment');
 const MessageEmbed = require('./MessageEmbed');
 let ClientDataResolver;
@@ -28733,7 +30403,7 @@ function resolveString(data) {
   return String(data);
 }
 
-},{"../client/ClientDataResolver":55,"./Attachment":157,"./MessageEmbed":175}],186:[function(require,module,exports){
+},{"../client/ClientDataResolver":57,"./Attachment":159,"./MessageEmbed":177}],188:[function(require,module,exports){
 const Snowflake = require('../util/Snowflake');
 const Permissions = require('../util/Permissions');
 const util = require('util');
@@ -29111,7 +30781,7 @@ Role.prototype.hasPermissions = util
 
 module.exports = Role;
 
-},{"../util/Permissions":199,"../util/Snowflake":200,"util":51}],187:[function(require,module,exports){
+},{"../util/Permissions":201,"../util/Snowflake":202,"util":51}],189:[function(require,module,exports){
 const GuildChannel = require('./GuildChannel');
 const TextBasedChannel = require('./interfaces/TextBasedChannel');
 const Collection = require('../util/Collection');
@@ -29239,7 +30909,7 @@ TextBasedChannel.applyToClass(TextChannel, true);
 
 module.exports = TextChannel;
 
-},{"../util/Collection":197,"./GuildChannel":169,"./interfaces/TextBasedChannel":195}],188:[function(require,module,exports){
+},{"../util/Collection":199,"./GuildChannel":171,"./interfaces/TextBasedChannel":197}],190:[function(require,module,exports){
 const TextBasedChannel = require('./interfaces/TextBasedChannel');
 const Constants = require('../util/Constants');
 const Presence = require('./Presence').Presence;
@@ -29563,7 +31233,7 @@ User.prototype.fetchProfile =
 
 module.exports = User;
 
-},{"../util/Constants":198,"../util/Snowflake":200,"./Presence":182,"./interfaces/TextBasedChannel":195,"util":51}],189:[function(require,module,exports){
+},{"../util/Constants":200,"../util/Snowflake":202,"./Presence":184,"./interfaces/TextBasedChannel":197,"util":51}],191:[function(require,module,exports){
 /**
  * Represents a user connection (or "platform identity").
  */
@@ -29613,7 +31283,7 @@ class UserConnection {
 
 module.exports = UserConnection;
 
-},{}],190:[function(require,module,exports){
+},{}],192:[function(require,module,exports){
 const Collection = require('../util/Collection');
 const UserConnection = require('./UserConnection');
 
@@ -29677,7 +31347,7 @@ class UserProfile {
 
 module.exports = UserProfile;
 
-},{"../util/Collection":197,"./UserConnection":189}],191:[function(require,module,exports){
+},{"../util/Collection":199,"./UserConnection":191}],193:[function(require,module,exports){
 const GuildChannel = require('./GuildChannel');
 const Collection = require('../util/Collection');
 const Permissions = require('../util/Permissions');
@@ -29825,7 +31495,7 @@ class VoiceChannel extends GuildChannel {
 
 module.exports = VoiceChannel;
 
-},{"../util/Collection":197,"../util/Permissions":199,"./GuildChannel":169}],192:[function(require,module,exports){
+},{"../util/Collection":199,"../util/Permissions":201,"./GuildChannel":171}],194:[function(require,module,exports){
 /**
  * Represents a Discord voice region for guilds.
  */
@@ -29877,7 +31547,7 @@ class VoiceRegion {
 
 module.exports = VoiceRegion;
 
-},{}],193:[function(require,module,exports){
+},{}],195:[function(require,module,exports){
 (function (Buffer){
 const path = require('path');
 const Util = require('../util/Util');
@@ -30181,8 +31851,8 @@ class Webhook {
 
 module.exports = Webhook;
 
-}).call(this,{"isBuffer":require("../../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
-},{"../../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js":12,"../util/Util":201,"./Attachment":157,"./RichEmbed":185,"path":26}],194:[function(require,module,exports){
+}).call(this,{"isBuffer":require("../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
+},{"../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js":12,"../util/Util":203,"./Attachment":159,"./RichEmbed":187,"path":26}],196:[function(require,module,exports){
 const Collection = require('../../util/Collection');
 const EventEmitter = require('events').EventEmitter;
 
@@ -30363,7 +32033,7 @@ class Collector extends EventEmitter {
 
 module.exports = Collector;
 
-},{"../../util/Collection":197,"events":9}],195:[function(require,module,exports){
+},{"../../util/Collection":199,"events":9}],197:[function(require,module,exports){
 (function (Buffer){
 const path = require('path');
 const Message = require('../Message');
@@ -30975,8 +32645,8 @@ TextBasedChannel.prototype.acknowledge = util.deprecate(
 TextBasedChannel.prototype.search =
   util.deprecate(TextBasedChannel.prototype.search, 'TextBasedChannel#search: userbot methods will be removed');
 
-}).call(this,{"isBuffer":require("../../../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
-},{"../../../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js":12,"../../structures/Attachment":157,"../../structures/RichEmbed":185,"../../util/Collection":197,"../../util/Snowflake":200,"../Message":172,"../MessageCollector":174,"path":26,"util":51}],196:[function(require,module,exports){
+}).call(this,{"isBuffer":require("../../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js")})
+},{"../../../../../.npm-packages/lib/node_modules/browserify/node_modules/is-buffer/index.js":12,"../../structures/Attachment":159,"../../structures/RichEmbed":187,"../../util/Collection":199,"../../util/Snowflake":202,"../Message":174,"../MessageCollector":176,"path":26,"util":51}],198:[function(require,module,exports){
 const Permissions = require('../../util/Permissions');
 const Collection = require('../../util/Collection');
 
@@ -31004,7 +32674,7 @@ module.exports = function resolvePermissions(overwrites, guild) {
   return overwrites;
 };
 
-},{"../../util/Collection":197,"../../util/Permissions":199}],197:[function(require,module,exports){
+},{"../../util/Collection":199,"../../util/Permissions":201}],199:[function(require,module,exports){
 (function (process){
 const util = require('util');
 
@@ -31540,7 +33210,7 @@ Collection.prototype.findKey = function findKey(propOrFn, value) {
 module.exports = Collection;
 
 }).call(this,require('_process'))
-},{"_process":28,"util":51}],198:[function(require,module,exports){
+},{"_process":28,"util":51}],200:[function(require,module,exports){
 (function (process){
 exports.Package = require('../../package.json');
 
@@ -32372,7 +34042,7 @@ exports.DefaultMessageNotifications = [
 ];
 
 }).call(this,require('_process'))
-},{"../../package.json":52,"_process":28,"os":14}],199:[function(require,module,exports){
+},{"../../package.json":54,"_process":28,"os":14}],201:[function(require,module,exports){
 const Constants = require('../util/Constants');
 const util = require('util');
 
@@ -32679,7 +34349,7 @@ Object.defineProperty(Permissions.prototype, 'member', {
 
 module.exports = Permissions;
 
-},{"../util/Constants":198,"util":51}],200:[function(require,module,exports){
+},{"../util/Constants":200,"util":51}],202:[function(require,module,exports){
 const Long = require('long');
 
 // Discord epoch (2015-01-01T00:00:00.000Z)
@@ -32763,7 +34433,7 @@ function pad(v, n, c = '0') {
 
 module.exports = SnowflakeUtil;
 
-},{"long":202}],201:[function(require,module,exports){
+},{"long":53}],203:[function(require,module,exports){
 (function (Buffer){
 const snekfetch = require('snekfetch');
 const Constants = require('./Constants');
@@ -32986,1975 +34656,7 @@ class Util {
 module.exports = Util;
 
 }).call(this,require("buffer").Buffer)
-},{"./Constants":198,"buffer":7,"snekfetch":203}],202:[function(require,module,exports){
-module.exports = Long;
-
-/**
- * wasm optimizations, to do native i64 multiplication and divide
- */
-var wasm = null;
-
-try {
-  wasm = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([
-    0, 97, 115, 109, 1, 0, 0, 0, 1, 13, 2, 96, 0, 1, 127, 96, 4, 127, 127, 127, 127, 1, 127, 3, 7, 6, 0, 1, 1, 1, 1, 1, 6, 6, 1, 127, 1, 65, 0, 11, 7, 50, 6, 3, 109, 117, 108, 0, 1, 5, 100, 105, 118, 95, 115, 0, 2, 5, 100, 105, 118, 95, 117, 0, 3, 5, 114, 101, 109, 95, 115, 0, 4, 5, 114, 101, 109, 95, 117, 0, 5, 8, 103, 101, 116, 95, 104, 105, 103, 104, 0, 0, 10, 191, 1, 6, 4, 0, 35, 0, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 126, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 127, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 128, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 129, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11, 36, 1, 1, 126, 32, 0, 173, 32, 1, 173, 66, 32, 134, 132, 32, 2, 173, 32, 3, 173, 66, 32, 134, 132, 130, 34, 4, 66, 32, 135, 167, 36, 0, 32, 4, 167, 11
-  ])), {}).exports;
-} catch (e) {
-  // no wasm support :(
-}
-
-/**
- * Constructs a 64 bit two's-complement integer, given its low and high 32 bit values as *signed* integers.
- *  See the from* functions below for more convenient ways of constructing Longs.
- * @exports Long
- * @class A Long class for representing a 64 bit two's-complement integer value.
- * @param {number} low The low (signed) 32 bits of the long
- * @param {number} high The high (signed) 32 bits of the long
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @constructor
- */
-function Long(low, high, unsigned) {
-
-    /**
-     * The low 32 bits as a signed value.
-     * @type {number}
-     */
-    this.low = low | 0;
-
-    /**
-     * The high 32 bits as a signed value.
-     * @type {number}
-     */
-    this.high = high | 0;
-
-    /**
-     * Whether unsigned or not.
-     * @type {boolean}
-     */
-    this.unsigned = !!unsigned;
-}
-
-// The internal representation of a long is the two given signed, 32-bit values.
-// We use 32-bit pieces because these are the size of integers on which
-// Javascript performs bit-operations.  For operations like addition and
-// multiplication, we split each number into 16 bit pieces, which can easily be
-// multiplied within Javascript's floating-point representation without overflow
-// or change in sign.
-//
-// In the algorithms below, we frequently reduce the negative case to the
-// positive case by negating the input(s) and then post-processing the result.
-// Note that we must ALWAYS check specially whether those values are MIN_VALUE
-// (-2^63) because -MIN_VALUE == MIN_VALUE (since 2^63 cannot be represented as
-// a positive number, it overflows back into a negative).  Not handling this
-// case would often result in infinite recursion.
-//
-// Common constant values ZERO, ONE, NEG_ONE, etc. are defined below the from*
-// methods on which they depend.
-
-/**
- * An indicator used to reliably determine if an object is a Long or not.
- * @type {boolean}
- * @const
- * @private
- */
-Long.prototype.__isLong__;
-
-Object.defineProperty(Long.prototype, "__isLong__", { value: true });
-
-/**
- * @function
- * @param {*} obj Object
- * @returns {boolean}
- * @inner
- */
-function isLong(obj) {
-    return (obj && obj["__isLong__"]) === true;
-}
-
-/**
- * Tests if the specified object is a Long.
- * @function
- * @param {*} obj Object
- * @returns {boolean}
- */
-Long.isLong = isLong;
-
-/**
- * A cache of the Long representations of small integer values.
- * @type {!Object}
- * @inner
- */
-var INT_CACHE = {};
-
-/**
- * A cache of the Long representations of small unsigned integer values.
- * @type {!Object}
- * @inner
- */
-var UINT_CACHE = {};
-
-/**
- * @param {number} value
- * @param {boolean=} unsigned
- * @returns {!Long}
- * @inner
- */
-function fromInt(value, unsigned) {
-    var obj, cachedObj, cache;
-    if (unsigned) {
-        value >>>= 0;
-        if (cache = (0 <= value && value < 256)) {
-            cachedObj = UINT_CACHE[value];
-            if (cachedObj)
-                return cachedObj;
-        }
-        obj = fromBits(value, (value | 0) < 0 ? -1 : 0, true);
-        if (cache)
-            UINT_CACHE[value] = obj;
-        return obj;
-    } else {
-        value |= 0;
-        if (cache = (-128 <= value && value < 128)) {
-            cachedObj = INT_CACHE[value];
-            if (cachedObj)
-                return cachedObj;
-        }
-        obj = fromBits(value, value < 0 ? -1 : 0, false);
-        if (cache)
-            INT_CACHE[value] = obj;
-        return obj;
-    }
-}
-
-/**
- * Returns a Long representing the given 32 bit integer value.
- * @function
- * @param {number} value The 32 bit integer in question
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @returns {!Long} The corresponding Long value
- */
-Long.fromInt = fromInt;
-
-/**
- * @param {number} value
- * @param {boolean=} unsigned
- * @returns {!Long}
- * @inner
- */
-function fromNumber(value, unsigned) {
-    if (isNaN(value))
-        return unsigned ? UZERO : ZERO;
-    if (unsigned) {
-        if (value < 0)
-            return UZERO;
-        if (value >= TWO_PWR_64_DBL)
-            return MAX_UNSIGNED_VALUE;
-    } else {
-        if (value <= -TWO_PWR_63_DBL)
-            return MIN_VALUE;
-        if (value + 1 >= TWO_PWR_63_DBL)
-            return MAX_VALUE;
-    }
-    if (value < 0)
-        return fromNumber(-value, unsigned).neg();
-    return fromBits((value % TWO_PWR_32_DBL) | 0, (value / TWO_PWR_32_DBL) | 0, unsigned);
-}
-
-/**
- * Returns a Long representing the given value, provided that it is a finite number. Otherwise, zero is returned.
- * @function
- * @param {number} value The number in question
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @returns {!Long} The corresponding Long value
- */
-Long.fromNumber = fromNumber;
-
-/**
- * @param {number} lowBits
- * @param {number} highBits
- * @param {boolean=} unsigned
- * @returns {!Long}
- * @inner
- */
-function fromBits(lowBits, highBits, unsigned) {
-    return new Long(lowBits, highBits, unsigned);
-}
-
-/**
- * Returns a Long representing the 64 bit integer that comes by concatenating the given low and high bits. Each is
- *  assumed to use 32 bits.
- * @function
- * @param {number} lowBits The low 32 bits
- * @param {number} highBits The high 32 bits
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @returns {!Long} The corresponding Long value
- */
-Long.fromBits = fromBits;
-
-/**
- * @function
- * @param {number} base
- * @param {number} exponent
- * @returns {number}
- * @inner
- */
-var pow_dbl = Math.pow; // Used 4 times (4*8 to 15+4)
-
-/**
- * @param {string} str
- * @param {(boolean|number)=} unsigned
- * @param {number=} radix
- * @returns {!Long}
- * @inner
- */
-function fromString(str, unsigned, radix) {
-    if (str.length === 0)
-        throw Error('empty string');
-    if (str === "NaN" || str === "Infinity" || str === "+Infinity" || str === "-Infinity")
-        return ZERO;
-    if (typeof unsigned === 'number') {
-        // For goog.math.long compatibility
-        radix = unsigned,
-        unsigned = false;
-    } else {
-        unsigned = !! unsigned;
-    }
-    radix = radix || 10;
-    if (radix < 2 || 36 < radix)
-        throw RangeError('radix');
-
-    var p;
-    if ((p = str.indexOf('-')) > 0)
-        throw Error('interior hyphen');
-    else if (p === 0) {
-        return fromString(str.substring(1), unsigned, radix).neg();
-    }
-
-    // Do several (8) digits each time through the loop, so as to
-    // minimize the calls to the very expensive emulated div.
-    var radixToPower = fromNumber(pow_dbl(radix, 8));
-
-    var result = ZERO;
-    for (var i = 0; i < str.length; i += 8) {
-        var size = Math.min(8, str.length - i),
-            value = parseInt(str.substring(i, i + size), radix);
-        if (size < 8) {
-            var power = fromNumber(pow_dbl(radix, size));
-            result = result.mul(power).add(fromNumber(value));
-        } else {
-            result = result.mul(radixToPower);
-            result = result.add(fromNumber(value));
-        }
-    }
-    result.unsigned = unsigned;
-    return result;
-}
-
-/**
- * Returns a Long representation of the given string, written using the specified radix.
- * @function
- * @param {string} str The textual representation of the Long
- * @param {(boolean|number)=} unsigned Whether unsigned or not, defaults to signed
- * @param {number=} radix The radix in which the text is written (2-36), defaults to 10
- * @returns {!Long} The corresponding Long value
- */
-Long.fromString = fromString;
-
-/**
- * @function
- * @param {!Long|number|string|!{low: number, high: number, unsigned: boolean}} val
- * @param {boolean=} unsigned
- * @returns {!Long}
- * @inner
- */
-function fromValue(val, unsigned) {
-    if (typeof val === 'number')
-        return fromNumber(val, unsigned);
-    if (typeof val === 'string')
-        return fromString(val, unsigned);
-    // Throws for non-objects, converts non-instanceof Long:
-    return fromBits(val.low, val.high, typeof unsigned === 'boolean' ? unsigned : val.unsigned);
-}
-
-/**
- * Converts the specified value to a Long using the appropriate from* function for its type.
- * @function
- * @param {!Long|number|string|!{low: number, high: number, unsigned: boolean}} val Value
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @returns {!Long}
- */
-Long.fromValue = fromValue;
-
-// NOTE: the compiler should inline these constant values below and then remove these variables, so there should be
-// no runtime penalty for these.
-
-/**
- * @type {number}
- * @const
- * @inner
- */
-var TWO_PWR_16_DBL = 1 << 16;
-
-/**
- * @type {number}
- * @const
- * @inner
- */
-var TWO_PWR_24_DBL = 1 << 24;
-
-/**
- * @type {number}
- * @const
- * @inner
- */
-var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
-
-/**
- * @type {number}
- * @const
- * @inner
- */
-var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
-
-/**
- * @type {number}
- * @const
- * @inner
- */
-var TWO_PWR_63_DBL = TWO_PWR_64_DBL / 2;
-
-/**
- * @type {!Long}
- * @const
- * @inner
- */
-var TWO_PWR_24 = fromInt(TWO_PWR_24_DBL);
-
-/**
- * @type {!Long}
- * @inner
- */
-var ZERO = fromInt(0);
-
-/**
- * Signed zero.
- * @type {!Long}
- */
-Long.ZERO = ZERO;
-
-/**
- * @type {!Long}
- * @inner
- */
-var UZERO = fromInt(0, true);
-
-/**
- * Unsigned zero.
- * @type {!Long}
- */
-Long.UZERO = UZERO;
-
-/**
- * @type {!Long}
- * @inner
- */
-var ONE = fromInt(1);
-
-/**
- * Signed one.
- * @type {!Long}
- */
-Long.ONE = ONE;
-
-/**
- * @type {!Long}
- * @inner
- */
-var UONE = fromInt(1, true);
-
-/**
- * Unsigned one.
- * @type {!Long}
- */
-Long.UONE = UONE;
-
-/**
- * @type {!Long}
- * @inner
- */
-var NEG_ONE = fromInt(-1);
-
-/**
- * Signed negative one.
- * @type {!Long}
- */
-Long.NEG_ONE = NEG_ONE;
-
-/**
- * @type {!Long}
- * @inner
- */
-var MAX_VALUE = fromBits(0xFFFFFFFF|0, 0x7FFFFFFF|0, false);
-
-/**
- * Maximum signed value.
- * @type {!Long}
- */
-Long.MAX_VALUE = MAX_VALUE;
-
-/**
- * @type {!Long}
- * @inner
- */
-var MAX_UNSIGNED_VALUE = fromBits(0xFFFFFFFF|0, 0xFFFFFFFF|0, true);
-
-/**
- * Maximum unsigned value.
- * @type {!Long}
- */
-Long.MAX_UNSIGNED_VALUE = MAX_UNSIGNED_VALUE;
-
-/**
- * @type {!Long}
- * @inner
- */
-var MIN_VALUE = fromBits(0, 0x80000000|0, false);
-
-/**
- * Minimum signed value.
- * @type {!Long}
- */
-Long.MIN_VALUE = MIN_VALUE;
-
-/**
- * @alias Long.prototype
- * @inner
- */
-var LongPrototype = Long.prototype;
-
-/**
- * Converts the Long to a 32 bit integer, assuming it is a 32 bit integer.
- * @returns {number}
- */
-LongPrototype.toInt = function toInt() {
-    return this.unsigned ? this.low >>> 0 : this.low;
-};
-
-/**
- * Converts the Long to a the nearest floating-point representation of this value (double, 53 bit mantissa).
- * @returns {number}
- */
-LongPrototype.toNumber = function toNumber() {
-    if (this.unsigned)
-        return ((this.high >>> 0) * TWO_PWR_32_DBL) + (this.low >>> 0);
-    return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
-};
-
-/**
- * Converts the Long to a string written in the specified radix.
- * @param {number=} radix Radix (2-36), defaults to 10
- * @returns {string}
- * @override
- * @throws {RangeError} If `radix` is out of range
- */
-LongPrototype.toString = function toString(radix) {
-    radix = radix || 10;
-    if (radix < 2 || 36 < radix)
-        throw RangeError('radix');
-    if (this.isZero())
-        return '0';
-    if (this.isNegative()) { // Unsigned Longs are never negative
-        if (this.eq(MIN_VALUE)) {
-            // We need to change the Long value before it can be negated, so we remove
-            // the bottom-most digit in this base and then recurse to do the rest.
-            var radixLong = fromNumber(radix),
-                div = this.div(radixLong),
-                rem1 = div.mul(radixLong).sub(this);
-            return div.toString(radix) + rem1.toInt().toString(radix);
-        } else
-            return '-' + this.neg().toString(radix);
-    }
-
-    // Do several (6) digits each time through the loop, so as to
-    // minimize the calls to the very expensive emulated div.
-    var radixToPower = fromNumber(pow_dbl(radix, 6), this.unsigned),
-        rem = this;
-    var result = '';
-    while (true) {
-        var remDiv = rem.div(radixToPower),
-            intval = rem.sub(remDiv.mul(radixToPower)).toInt() >>> 0,
-            digits = intval.toString(radix);
-        rem = remDiv;
-        if (rem.isZero())
-            return digits + result;
-        else {
-            while (digits.length < 6)
-                digits = '0' + digits;
-            result = '' + digits + result;
-        }
-    }
-};
-
-/**
- * Gets the high 32 bits as a signed integer.
- * @returns {number} Signed high bits
- */
-LongPrototype.getHighBits = function getHighBits() {
-    return this.high;
-};
-
-/**
- * Gets the high 32 bits as an unsigned integer.
- * @returns {number} Unsigned high bits
- */
-LongPrototype.getHighBitsUnsigned = function getHighBitsUnsigned() {
-    return this.high >>> 0;
-};
-
-/**
- * Gets the low 32 bits as a signed integer.
- * @returns {number} Signed low bits
- */
-LongPrototype.getLowBits = function getLowBits() {
-    return this.low;
-};
-
-/**
- * Gets the low 32 bits as an unsigned integer.
- * @returns {number} Unsigned low bits
- */
-LongPrototype.getLowBitsUnsigned = function getLowBitsUnsigned() {
-    return this.low >>> 0;
-};
-
-/**
- * Gets the number of bits needed to represent the absolute value of this Long.
- * @returns {number}
- */
-LongPrototype.getNumBitsAbs = function getNumBitsAbs() {
-    if (this.isNegative()) // Unsigned Longs are never negative
-        return this.eq(MIN_VALUE) ? 64 : this.neg().getNumBitsAbs();
-    var val = this.high != 0 ? this.high : this.low;
-    for (var bit = 31; bit > 0; bit--)
-        if ((val & (1 << bit)) != 0)
-            break;
-    return this.high != 0 ? bit + 33 : bit + 1;
-};
-
-/**
- * Tests if this Long's value equals zero.
- * @returns {boolean}
- */
-LongPrototype.isZero = function isZero() {
-    return this.high === 0 && this.low === 0;
-};
-
-/**
- * Tests if this Long's value equals zero. This is an alias of {@link Long#isZero}.
- * @returns {boolean}
- */
-LongPrototype.eqz = LongPrototype.isZero;
-
-/**
- * Tests if this Long's value is negative.
- * @returns {boolean}
- */
-LongPrototype.isNegative = function isNegative() {
-    return !this.unsigned && this.high < 0;
-};
-
-/**
- * Tests if this Long's value is positive.
- * @returns {boolean}
- */
-LongPrototype.isPositive = function isPositive() {
-    return this.unsigned || this.high >= 0;
-};
-
-/**
- * Tests if this Long's value is odd.
- * @returns {boolean}
- */
-LongPrototype.isOdd = function isOdd() {
-    return (this.low & 1) === 1;
-};
-
-/**
- * Tests if this Long's value is even.
- * @returns {boolean}
- */
-LongPrototype.isEven = function isEven() {
-    return (this.low & 1) === 0;
-};
-
-/**
- * Tests if this Long's value equals the specified's.
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.equals = function equals(other) {
-    if (!isLong(other))
-        other = fromValue(other);
-    if (this.unsigned !== other.unsigned && (this.high >>> 31) === 1 && (other.high >>> 31) === 1)
-        return false;
-    return this.high === other.high && this.low === other.low;
-};
-
-/**
- * Tests if this Long's value equals the specified's. This is an alias of {@link Long#equals}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.eq = LongPrototype.equals;
-
-/**
- * Tests if this Long's value differs from the specified's.
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.notEquals = function notEquals(other) {
-    return !this.eq(/* validates */ other);
-};
-
-/**
- * Tests if this Long's value differs from the specified's. This is an alias of {@link Long#notEquals}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.neq = LongPrototype.notEquals;
-
-/**
- * Tests if this Long's value differs from the specified's. This is an alias of {@link Long#notEquals}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.ne = LongPrototype.notEquals;
-
-/**
- * Tests if this Long's value is less than the specified's.
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.lessThan = function lessThan(other) {
-    return this.comp(/* validates */ other) < 0;
-};
-
-/**
- * Tests if this Long's value is less than the specified's. This is an alias of {@link Long#lessThan}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.lt = LongPrototype.lessThan;
-
-/**
- * Tests if this Long's value is less than or equal the specified's.
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.lessThanOrEqual = function lessThanOrEqual(other) {
-    return this.comp(/* validates */ other) <= 0;
-};
-
-/**
- * Tests if this Long's value is less than or equal the specified's. This is an alias of {@link Long#lessThanOrEqual}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.lte = LongPrototype.lessThanOrEqual;
-
-/**
- * Tests if this Long's value is less than or equal the specified's. This is an alias of {@link Long#lessThanOrEqual}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.le = LongPrototype.lessThanOrEqual;
-
-/**
- * Tests if this Long's value is greater than the specified's.
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.greaterThan = function greaterThan(other) {
-    return this.comp(/* validates */ other) > 0;
-};
-
-/**
- * Tests if this Long's value is greater than the specified's. This is an alias of {@link Long#greaterThan}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.gt = LongPrototype.greaterThan;
-
-/**
- * Tests if this Long's value is greater than or equal the specified's.
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.greaterThanOrEqual = function greaterThanOrEqual(other) {
-    return this.comp(/* validates */ other) >= 0;
-};
-
-/**
- * Tests if this Long's value is greater than or equal the specified's. This is an alias of {@link Long#greaterThanOrEqual}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.gte = LongPrototype.greaterThanOrEqual;
-
-/**
- * Tests if this Long's value is greater than or equal the specified's. This is an alias of {@link Long#greaterThanOrEqual}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {boolean}
- */
-LongPrototype.ge = LongPrototype.greaterThanOrEqual;
-
-/**
- * Compares this Long's value with the specified's.
- * @param {!Long|number|string} other Other value
- * @returns {number} 0 if they are the same, 1 if the this is greater and -1
- *  if the given one is greater
- */
-LongPrototype.compare = function compare(other) {
-    if (!isLong(other))
-        other = fromValue(other);
-    if (this.eq(other))
-        return 0;
-    var thisNeg = this.isNegative(),
-        otherNeg = other.isNegative();
-    if (thisNeg && !otherNeg)
-        return -1;
-    if (!thisNeg && otherNeg)
-        return 1;
-    // At this point the sign bits are the same
-    if (!this.unsigned)
-        return this.sub(other).isNegative() ? -1 : 1;
-    // Both are positive if at least one is unsigned
-    return (other.high >>> 0) > (this.high >>> 0) || (other.high === this.high && (other.low >>> 0) > (this.low >>> 0)) ? -1 : 1;
-};
-
-/**
- * Compares this Long's value with the specified's. This is an alias of {@link Long#compare}.
- * @function
- * @param {!Long|number|string} other Other value
- * @returns {number} 0 if they are the same, 1 if the this is greater and -1
- *  if the given one is greater
- */
-LongPrototype.comp = LongPrototype.compare;
-
-/**
- * Negates this Long's value.
- * @returns {!Long} Negated Long
- */
-LongPrototype.negate = function negate() {
-    if (!this.unsigned && this.eq(MIN_VALUE))
-        return MIN_VALUE;
-    return this.not().add(ONE);
-};
-
-/**
- * Negates this Long's value. This is an alias of {@link Long#negate}.
- * @function
- * @returns {!Long} Negated Long
- */
-LongPrototype.neg = LongPrototype.negate;
-
-/**
- * Returns the sum of this and the specified Long.
- * @param {!Long|number|string} addend Addend
- * @returns {!Long} Sum
- */
-LongPrototype.add = function add(addend) {
-    if (!isLong(addend))
-        addend = fromValue(addend);
-
-    // Divide each number into 4 chunks of 16 bits, and then sum the chunks.
-
-    var a48 = this.high >>> 16;
-    var a32 = this.high & 0xFFFF;
-    var a16 = this.low >>> 16;
-    var a00 = this.low & 0xFFFF;
-
-    var b48 = addend.high >>> 16;
-    var b32 = addend.high & 0xFFFF;
-    var b16 = addend.low >>> 16;
-    var b00 = addend.low & 0xFFFF;
-
-    var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
-    c00 += a00 + b00;
-    c16 += c00 >>> 16;
-    c00 &= 0xFFFF;
-    c16 += a16 + b16;
-    c32 += c16 >>> 16;
-    c16 &= 0xFFFF;
-    c32 += a32 + b32;
-    c48 += c32 >>> 16;
-    c32 &= 0xFFFF;
-    c48 += a48 + b48;
-    c48 &= 0xFFFF;
-    return fromBits((c16 << 16) | c00, (c48 << 16) | c32, this.unsigned);
-};
-
-/**
- * Returns the difference of this and the specified Long.
- * @param {!Long|number|string} subtrahend Subtrahend
- * @returns {!Long} Difference
- */
-LongPrototype.subtract = function subtract(subtrahend) {
-    if (!isLong(subtrahend))
-        subtrahend = fromValue(subtrahend);
-    return this.add(subtrahend.neg());
-};
-
-/**
- * Returns the difference of this and the specified Long. This is an alias of {@link Long#subtract}.
- * @function
- * @param {!Long|number|string} subtrahend Subtrahend
- * @returns {!Long} Difference
- */
-LongPrototype.sub = LongPrototype.subtract;
-
-/**
- * Returns the product of this and the specified Long.
- * @param {!Long|number|string} multiplier Multiplier
- * @returns {!Long} Product
- */
-LongPrototype.multiply = function multiply(multiplier) {
-    if (this.isZero())
-        return ZERO;
-    if (!isLong(multiplier))
-        multiplier = fromValue(multiplier);
-
-    // use wasm support if present
-    if (wasm) {
-        var low = wasm.mul(this.low,
-                           this.high,
-                           multiplier.low,
-                           multiplier.high);
-        return fromBits(low, wasm.get_high(), this.unsigned);
-    }
-
-    if (multiplier.isZero())
-        return ZERO;
-    if (this.eq(MIN_VALUE))
-        return multiplier.isOdd() ? MIN_VALUE : ZERO;
-    if (multiplier.eq(MIN_VALUE))
-        return this.isOdd() ? MIN_VALUE : ZERO;
-
-    if (this.isNegative()) {
-        if (multiplier.isNegative())
-            return this.neg().mul(multiplier.neg());
-        else
-            return this.neg().mul(multiplier).neg();
-    } else if (multiplier.isNegative())
-        return this.mul(multiplier.neg()).neg();
-
-    // If both longs are small, use float multiplication
-    if (this.lt(TWO_PWR_24) && multiplier.lt(TWO_PWR_24))
-        return fromNumber(this.toNumber() * multiplier.toNumber(), this.unsigned);
-
-    // Divide each long into 4 chunks of 16 bits, and then add up 4x4 products.
-    // We can skip products that would overflow.
-
-    var a48 = this.high >>> 16;
-    var a32 = this.high & 0xFFFF;
-    var a16 = this.low >>> 16;
-    var a00 = this.low & 0xFFFF;
-
-    var b48 = multiplier.high >>> 16;
-    var b32 = multiplier.high & 0xFFFF;
-    var b16 = multiplier.low >>> 16;
-    var b00 = multiplier.low & 0xFFFF;
-
-    var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
-    c00 += a00 * b00;
-    c16 += c00 >>> 16;
-    c00 &= 0xFFFF;
-    c16 += a16 * b00;
-    c32 += c16 >>> 16;
-    c16 &= 0xFFFF;
-    c16 += a00 * b16;
-    c32 += c16 >>> 16;
-    c16 &= 0xFFFF;
-    c32 += a32 * b00;
-    c48 += c32 >>> 16;
-    c32 &= 0xFFFF;
-    c32 += a16 * b16;
-    c48 += c32 >>> 16;
-    c32 &= 0xFFFF;
-    c32 += a00 * b32;
-    c48 += c32 >>> 16;
-    c32 &= 0xFFFF;
-    c48 += a48 * b00 + a32 * b16 + a16 * b32 + a00 * b48;
-    c48 &= 0xFFFF;
-    return fromBits((c16 << 16) | c00, (c48 << 16) | c32, this.unsigned);
-};
-
-/**
- * Returns the product of this and the specified Long. This is an alias of {@link Long#multiply}.
- * @function
- * @param {!Long|number|string} multiplier Multiplier
- * @returns {!Long} Product
- */
-LongPrototype.mul = LongPrototype.multiply;
-
-/**
- * Returns this Long divided by the specified. The result is signed if this Long is signed or
- *  unsigned if this Long is unsigned.
- * @param {!Long|number|string} divisor Divisor
- * @returns {!Long} Quotient
- */
-LongPrototype.divide = function divide(divisor) {
-    if (!isLong(divisor))
-        divisor = fromValue(divisor);
-    if (divisor.isZero())
-        throw Error('division by zero');
-
-    // use wasm support if present
-    if (wasm) {
-        // guard against signed division overflow: the largest
-        // negative number / -1 would be 1 larger than the largest
-        // positive number, due to two's complement.
-        if (!this.unsigned &&
-            this.high === -0x80000000 &&
-            divisor.low === -1 && divisor.high === -1) {
-            // be consistent with non-wasm code path
-            return this;
-        }
-        var low = (this.unsigned ? wasm.div_u : wasm.div_s)(
-            this.low,
-            this.high,
-            divisor.low,
-            divisor.high
-        );
-        return fromBits(low, wasm.get_high(), this.unsigned);
-    }
-
-    if (this.isZero())
-        return this.unsigned ? UZERO : ZERO;
-    var approx, rem, res;
-    if (!this.unsigned) {
-        // This section is only relevant for signed longs and is derived from the
-        // closure library as a whole.
-        if (this.eq(MIN_VALUE)) {
-            if (divisor.eq(ONE) || divisor.eq(NEG_ONE))
-                return MIN_VALUE;  // recall that -MIN_VALUE == MIN_VALUE
-            else if (divisor.eq(MIN_VALUE))
-                return ONE;
-            else {
-                // At this point, we have |other| >= 2, so |this/other| < |MIN_VALUE|.
-                var halfThis = this.shr(1);
-                approx = halfThis.div(divisor).shl(1);
-                if (approx.eq(ZERO)) {
-                    return divisor.isNegative() ? ONE : NEG_ONE;
-                } else {
-                    rem = this.sub(divisor.mul(approx));
-                    res = approx.add(rem.div(divisor));
-                    return res;
-                }
-            }
-        } else if (divisor.eq(MIN_VALUE))
-            return this.unsigned ? UZERO : ZERO;
-        if (this.isNegative()) {
-            if (divisor.isNegative())
-                return this.neg().div(divisor.neg());
-            return this.neg().div(divisor).neg();
-        } else if (divisor.isNegative())
-            return this.div(divisor.neg()).neg();
-        res = ZERO;
-    } else {
-        // The algorithm below has not been made for unsigned longs. It's therefore
-        // required to take special care of the MSB prior to running it.
-        if (!divisor.unsigned)
-            divisor = divisor.toUnsigned();
-        if (divisor.gt(this))
-            return UZERO;
-        if (divisor.gt(this.shru(1))) // 15 >>> 1 = 7 ; with divisor = 8 ; true
-            return UONE;
-        res = UZERO;
-    }
-
-    // Repeat the following until the remainder is less than other:  find a
-    // floating-point that approximates remainder / other *from below*, add this
-    // into the result, and subtract it from the remainder.  It is critical that
-    // the approximate value is less than or equal to the real value so that the
-    // remainder never becomes negative.
-    rem = this;
-    while (rem.gte(divisor)) {
-        // Approximate the result of division. This may be a little greater or
-        // smaller than the actual value.
-        approx = Math.max(1, Math.floor(rem.toNumber() / divisor.toNumber()));
-
-        // We will tweak the approximate result by changing it in the 48-th digit or
-        // the smallest non-fractional digit, whichever is larger.
-        var log2 = Math.ceil(Math.log(approx) / Math.LN2),
-            delta = (log2 <= 48) ? 1 : pow_dbl(2, log2 - 48),
-
-        // Decrease the approximation until it is smaller than the remainder.  Note
-        // that if it is too large, the product overflows and is negative.
-            approxRes = fromNumber(approx),
-            approxRem = approxRes.mul(divisor);
-        while (approxRem.isNegative() || approxRem.gt(rem)) {
-            approx -= delta;
-            approxRes = fromNumber(approx, this.unsigned);
-            approxRem = approxRes.mul(divisor);
-        }
-
-        // We know the answer can't be zero... and actually, zero would cause
-        // infinite recursion since we would make no progress.
-        if (approxRes.isZero())
-            approxRes = ONE;
-
-        res = res.add(approxRes);
-        rem = rem.sub(approxRem);
-    }
-    return res;
-};
-
-/**
- * Returns this Long divided by the specified. This is an alias of {@link Long#divide}.
- * @function
- * @param {!Long|number|string} divisor Divisor
- * @returns {!Long} Quotient
- */
-LongPrototype.div = LongPrototype.divide;
-
-/**
- * Returns this Long modulo the specified.
- * @param {!Long|number|string} divisor Divisor
- * @returns {!Long} Remainder
- */
-LongPrototype.modulo = function modulo(divisor) {
-    if (!isLong(divisor))
-        divisor = fromValue(divisor);
-
-    // use wasm support if present
-    if (wasm) {
-        var low = (this.unsigned ? wasm.rem_u : wasm.rem_s)(
-            this.low,
-            this.high,
-            divisor.low,
-            divisor.high
-        );
-        return fromBits(low, wasm.get_high(), this.unsigned);
-    }
-
-    return this.sub(this.div(divisor).mul(divisor));
-};
-
-/**
- * Returns this Long modulo the specified. This is an alias of {@link Long#modulo}.
- * @function
- * @param {!Long|number|string} divisor Divisor
- * @returns {!Long} Remainder
- */
-LongPrototype.mod = LongPrototype.modulo;
-
-/**
- * Returns this Long modulo the specified. This is an alias of {@link Long#modulo}.
- * @function
- * @param {!Long|number|string} divisor Divisor
- * @returns {!Long} Remainder
- */
-LongPrototype.rem = LongPrototype.modulo;
-
-/**
- * Returns the bitwise NOT of this Long.
- * @returns {!Long}
- */
-LongPrototype.not = function not() {
-    return fromBits(~this.low, ~this.high, this.unsigned);
-};
-
-/**
- * Returns the bitwise AND of this Long and the specified.
- * @param {!Long|number|string} other Other Long
- * @returns {!Long}
- */
-LongPrototype.and = function and(other) {
-    if (!isLong(other))
-        other = fromValue(other);
-    return fromBits(this.low & other.low, this.high & other.high, this.unsigned);
-};
-
-/**
- * Returns the bitwise OR of this Long and the specified.
- * @param {!Long|number|string} other Other Long
- * @returns {!Long}
- */
-LongPrototype.or = function or(other) {
-    if (!isLong(other))
-        other = fromValue(other);
-    return fromBits(this.low | other.low, this.high | other.high, this.unsigned);
-};
-
-/**
- * Returns the bitwise XOR of this Long and the given one.
- * @param {!Long|number|string} other Other Long
- * @returns {!Long}
- */
-LongPrototype.xor = function xor(other) {
-    if (!isLong(other))
-        other = fromValue(other);
-    return fromBits(this.low ^ other.low, this.high ^ other.high, this.unsigned);
-};
-
-/**
- * Returns this Long with bits shifted to the left by the given amount.
- * @param {number|!Long} numBits Number of bits
- * @returns {!Long} Shifted Long
- */
-LongPrototype.shiftLeft = function shiftLeft(numBits) {
-    if (isLong(numBits))
-        numBits = numBits.toInt();
-    if ((numBits &= 63) === 0)
-        return this;
-    else if (numBits < 32)
-        return fromBits(this.low << numBits, (this.high << numBits) | (this.low >>> (32 - numBits)), this.unsigned);
-    else
-        return fromBits(0, this.low << (numBits - 32), this.unsigned);
-};
-
-/**
- * Returns this Long with bits shifted to the left by the given amount. This is an alias of {@link Long#shiftLeft}.
- * @function
- * @param {number|!Long} numBits Number of bits
- * @returns {!Long} Shifted Long
- */
-LongPrototype.shl = LongPrototype.shiftLeft;
-
-/**
- * Returns this Long with bits arithmetically shifted to the right by the given amount.
- * @param {number|!Long} numBits Number of bits
- * @returns {!Long} Shifted Long
- */
-LongPrototype.shiftRight = function shiftRight(numBits) {
-    if (isLong(numBits))
-        numBits = numBits.toInt();
-    if ((numBits &= 63) === 0)
-        return this;
-    else if (numBits < 32)
-        return fromBits((this.low >>> numBits) | (this.high << (32 - numBits)), this.high >> numBits, this.unsigned);
-    else
-        return fromBits(this.high >> (numBits - 32), this.high >= 0 ? 0 : -1, this.unsigned);
-};
-
-/**
- * Returns this Long with bits arithmetically shifted to the right by the given amount. This is an alias of {@link Long#shiftRight}.
- * @function
- * @param {number|!Long} numBits Number of bits
- * @returns {!Long} Shifted Long
- */
-LongPrototype.shr = LongPrototype.shiftRight;
-
-/**
- * Returns this Long with bits logically shifted to the right by the given amount.
- * @param {number|!Long} numBits Number of bits
- * @returns {!Long} Shifted Long
- */
-LongPrototype.shiftRightUnsigned = function shiftRightUnsigned(numBits) {
-    if (isLong(numBits))
-        numBits = numBits.toInt();
-    numBits &= 63;
-    if (numBits === 0)
-        return this;
-    else {
-        var high = this.high;
-        if (numBits < 32) {
-            var low = this.low;
-            return fromBits((low >>> numBits) | (high << (32 - numBits)), high >>> numBits, this.unsigned);
-        } else if (numBits === 32)
-            return fromBits(high, 0, this.unsigned);
-        else
-            return fromBits(high >>> (numBits - 32), 0, this.unsigned);
-    }
-};
-
-/**
- * Returns this Long with bits logically shifted to the right by the given amount. This is an alias of {@link Long#shiftRightUnsigned}.
- * @function
- * @param {number|!Long} numBits Number of bits
- * @returns {!Long} Shifted Long
- */
-LongPrototype.shru = LongPrototype.shiftRightUnsigned;
-
-/**
- * Returns this Long with bits logically shifted to the right by the given amount. This is an alias of {@link Long#shiftRightUnsigned}.
- * @function
- * @param {number|!Long} numBits Number of bits
- * @returns {!Long} Shifted Long
- */
-LongPrototype.shr_u = LongPrototype.shiftRightUnsigned;
-
-/**
- * Converts this Long to signed.
- * @returns {!Long} Signed long
- */
-LongPrototype.toSigned = function toSigned() {
-    if (!this.unsigned)
-        return this;
-    return fromBits(this.low, this.high, false);
-};
-
-/**
- * Converts this Long to unsigned.
- * @returns {!Long} Unsigned long
- */
-LongPrototype.toUnsigned = function toUnsigned() {
-    if (this.unsigned)
-        return this;
-    return fromBits(this.low, this.high, true);
-};
-
-/**
- * Converts this Long to its byte representation.
- * @param {boolean=} le Whether little or big endian, defaults to big endian
- * @returns {!Array.<number>} Byte representation
- */
-LongPrototype.toBytes = function toBytes(le) {
-    return le ? this.toBytesLE() : this.toBytesBE();
-};
-
-/**
- * Converts this Long to its little endian byte representation.
- * @returns {!Array.<number>} Little endian byte representation
- */
-LongPrototype.toBytesLE = function toBytesLE() {
-    var hi = this.high,
-        lo = this.low;
-    return [
-        lo        & 0xff,
-        lo >>>  8 & 0xff,
-        lo >>> 16 & 0xff,
-        lo >>> 24       ,
-        hi        & 0xff,
-        hi >>>  8 & 0xff,
-        hi >>> 16 & 0xff,
-        hi >>> 24
-    ];
-};
-
-/**
- * Converts this Long to its big endian byte representation.
- * @returns {!Array.<number>} Big endian byte representation
- */
-LongPrototype.toBytesBE = function toBytesBE() {
-    var hi = this.high,
-        lo = this.low;
-    return [
-        hi >>> 24       ,
-        hi >>> 16 & 0xff,
-        hi >>>  8 & 0xff,
-        hi        & 0xff,
-        lo >>> 24       ,
-        lo >>> 16 & 0xff,
-        lo >>>  8 & 0xff,
-        lo        & 0xff
-    ];
-};
-
-/**
- * Creates a Long from its byte representation.
- * @param {!Array.<number>} bytes Byte representation
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @param {boolean=} le Whether little or big endian, defaults to big endian
- * @returns {Long} The corresponding Long value
- */
-Long.fromBytes = function fromBytes(bytes, unsigned, le) {
-    return le ? Long.fromBytesLE(bytes, unsigned) : Long.fromBytesBE(bytes, unsigned);
-};
-
-/**
- * Creates a Long from its little endian byte representation.
- * @param {!Array.<number>} bytes Little endian byte representation
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @returns {Long} The corresponding Long value
- */
-Long.fromBytesLE = function fromBytesLE(bytes, unsigned) {
-    return new Long(
-        bytes[0]       |
-        bytes[1] <<  8 |
-        bytes[2] << 16 |
-        bytes[3] << 24,
-        bytes[4]       |
-        bytes[5] <<  8 |
-        bytes[6] << 16 |
-        bytes[7] << 24,
-        unsigned
-    );
-};
-
-/**
- * Creates a Long from its big endian byte representation.
- * @param {!Array.<number>} bytes Big endian byte representation
- * @param {boolean=} unsigned Whether unsigned or not, defaults to signed
- * @returns {Long} The corresponding Long value
- */
-Long.fromBytesBE = function fromBytesBE(bytes, unsigned) {
-    return new Long(
-        bytes[4] << 24 |
-        bytes[5] << 16 |
-        bytes[6] <<  8 |
-        bytes[7],
-        bytes[0] << 24 |
-        bytes[1] << 16 |
-        bytes[2] <<  8 |
-        bytes[3],
-        unsigned
-    );
-};
-
-},{}],203:[function(require,module,exports){
-module.exports = require('./src');
-
-},{"./src":205}],204:[function(require,module,exports){
-function buildRequest(method, url) {
-  return {
-    method,
-    path: url,
-    redirect: this.options.followRedirects ? 'follow' : 'manual',
-    headers: {},
-    setHeader(name, value) {
-      this.headers[name.toLowerCase()] = value;
-    },
-    getHeader(name) {
-      return this.headers[name.toLowerCase()];
-    },
-  };
-}
-
-function finalizeRequest() {
-  this._finalizeRequest();
-  if (this.data)
-    this.request.body = this.data;
-  return window.fetch(this.request.path, this.request)
-    .then((r) => r.text().then((t) => {
-      const headers = {};
-      for (const [k, v] of r.headers.entries())
-        headers[k.toLowerCase()] = v;
-      return { response: r, raw: t, headers };
-    }));
-}
-
-module.exports = {
-  buildRequest, finalizeRequest,
-  shouldSendRaw: () => false,
-  METHODS: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'PATCH'],
-  STATUS_CODES: {},
-  Extension: Object,
-  FormData: window.FormData,
-};
-
-},{}],205:[function(require,module,exports){
-const browser = typeof window !== 'undefined';
-const querystring = require('querystring');
-const transport = browser ? require('./browser') : require('./node');
-
-/**
- * Snekfetch
- * @extends Stream.Readable
- * @extends Promise
- */
-class Snekfetch extends transport.Extension {
-  /**
-   * Options to pass to the Snekfetch constructor
-   * @typedef {object} SnekfetchOptions
-   * @memberof Snekfetch
-   * @property {object} [headers] Headers to initialize the request with
-   * @property {object|string|Buffer} [data] Data to initialize the request with
-   * @property {string|Object} [query] Query to intialize the request with
-   * @property {boolean} [followRedirects=true] If the request should follow redirects
-   * @property {object} [qs=querystring] Querystring module to use, any object providing
-   * `stringify` and `parse` for querystrings
-   * @property {number} [version = 1] The http version to use [1 or 2]
-   * @property {external:Agent} [agent] Whether to use an http agent
-   */
-
-  /**
-   * Create a request.
-   * Usually you'll want to do `Snekfetch#method(url [, options])` instead of
-   * `new Snekfetch(method, url [, options])`
-   * @param {string} method HTTP method
-   * @param {string} url URL
-   * @param {SnekfetchOptions} [opts] Options
-   */
-  constructor(method, url, opts = {}) {
-    super();
-    this.options = Object.assign({ version: 1, qs: querystring, followRedirects: true }, opts);
-    this.request = transport.buildRequest.call(this, method, url, opts);
-    if (opts.headers)
-      this.set(opts.headers);
-    if (opts.query)
-      this.query(opts.query);
-    if (opts.data)
-      this.send(opts.data);
-  }
-
-  /**
-   * Add a query param to the request
-   * @param {string|Object} name Name of query param or object to add to query
-   * @param {string} [value] If name is a string value, this will be the value of the query param
-   * @returns {Snekfetch} This request
-   */
-  query(name, value) {
-    if (!this.request.query)
-      this.request.query = {};
-    if (name !== null && typeof name === 'object') {
-      for (const [k, v] of Object.entries(name))
-        this.query(k, v);
-    } else {
-      this.request.query[name] = value;
-    }
-
-    return this;
-  }
-
-  /**
-   * Add a header to the request
-   * @param {string|Object} name Name of query param or object to add to headers
-   * @param {string} [value] If name is a string value, this will be the value of the header
-   * @returns {Snekfetch} This request
-   */
-  set(name, value) {
-    if (name !== null && typeof name === 'object') {
-      for (const key of Object.keys(name))
-        this.set(key, name[key]);
-    } else {
-      this.request.setHeader(name, value);
-    }
-
-    return this;
-  }
-
-  /**
-   * Attach a form data object
-   * @param {string} name Name of the form attachment
-   * @param {string|Object|Buffer} data Data for the attachment
-   * @param {string} [filename] Optional filename if form attachment name needs to be overridden
-   * @returns {Snekfetch} This request
-   */
-  attach(...args) {
-    const form = this.data instanceof transport.FormData ? this.data : this.data = new transport.FormData();
-    if (typeof args[0] === 'object') {
-      for (const [k, v] of Object.entries(args[0]))
-        this.attach(k, v);
-    } else {
-      form.append(...args);
-    }
-
-    return this;
-  }
-
-  /**
-   * Send data with the request
-   * @param {string|Buffer|Object} data Data to send
-   * @returns {Snekfetch} This request
-   */
-  send(data) {
-    if (data instanceof transport.FormData || transport.shouldSendRaw(data)) {
-      this.data = data;
-    } else if (data !== null && typeof data === 'object') {
-      const header = this.request.getHeader('content-type');
-      let serialize;
-      if (header) {
-        if (header.includes('json'))
-          serialize = JSON.stringify;
-        else if (header.includes('urlencoded'))
-          serialize = this.options.qs.stringify;
-      } else {
-        this.set('Content-Type', 'application/json');
-        serialize = JSON.stringify;
-      }
-      this.data = serialize(data);
-    } else {
-      this.data = data;
-    }
-    return this;
-  }
-
-  then(resolver, rejector) {
-    if (this._response)
-      return this._response.then(resolver, rejector);
-    // eslint-disable-next-line no-return-assign
-    return this._response = transport.finalizeRequest.call(this)
-      .then(({ response, raw, redirect, headers }) => {
-        if (redirect) {
-          let method = this.request.method;
-          if ([301, 302].includes(response.statusCode)) {
-            if (method !== 'HEAD')
-              method = 'GET';
-            this.data = null;
-          } else if (response.statusCode === 303) {
-            method = 'GET';
-          }
-
-          const redirectHeaders = this.request.getHeaders();
-          delete redirectHeaders.host;
-          return new Snekfetch(method, redirect, {
-            data: this.data,
-            headers: redirectHeaders,
-            version: this.options.version,
-          });
-        }
-
-        const statusCode = response.statusCode || response.status;
-        // forgive me :(
-        const self = this; // eslint-disable-line consistent-this
-        /**
-         * Response from Snekfetch
-         * @typedef {Object} SnekfetchResponse
-         * @memberof Snekfetch
-         * @prop {HTTP.Request} request
-         * @prop {?string|object|Buffer} body Processed response body
-         * @prop {string} text Raw response body
-         * @prop {boolean} ok If the response code is >= 200 and < 300
-         * @prop {number} status HTTP status code
-         * @prop {string} statusText Human readable HTTP status
-         */
-        const res = {
-          request: this.request,
-          get body() {
-            delete res.body;
-            const type = this.headers['content-type'];
-            if (type && type.includes('application/json')) {
-              try {
-                res.body = JSON.parse(res.text);
-              } catch (err) {
-                res.body = res.text;
-              }
-            } else if (type && type.includes('application/x-www-form-urlencoded')) {
-              res.body = self.options.qs.parse(res.text);
-            } else {
-              res.body = raw;
-            }
-
-            return res.body;
-          },
-          text: raw.toString(),
-          ok: statusCode >= 200 && statusCode < 400,
-          headers: headers || response.headers,
-          status: statusCode,
-          statusText: response.statusText || transport.STATUS_CODES[response.statusCode],
-        };
-
-        if (res.ok) {
-          return res;
-        } else {
-          const err = new Error(`${res.status} ${res.statusText}`.trim());
-          Object.assign(err, res);
-          return Promise.reject(err);
-        }
-      })
-      .then(resolver, rejector);
-  }
-
-  catch(rejector) {
-    return this.then(null, rejector);
-  }
-
-  /**
-   * End the request
-   * @param {Function} [cb] Optional callback to handle the response
-   * @returns {Promise} This request
-   */
-  end(cb) {
-    return this.then(
-      (res) => cb ? cb(null, res) : res,
-      (err) => cb ? cb(err, err.status ? err : null) : Promise.reject(err)
-    );
-  }
-
-  _finalizeRequest() {
-    if (!this.request)
-      return;
-
-    if (this.request.method !== 'HEAD')
-      this.set('Accept-Encoding', 'gzip, deflate');
-    if (this.data && this.data.getBoundary)
-      this.set('Content-Type', `multipart/form-data; boundary=${this.data.getBoundary()}`);
-
-    if (this.request.query) {
-      const [path, query] = this.request.path.split('?');
-      this.request.path = `${path}?${this.options.qs.stringify(this.request.query)}${query ? `&${query}` : ''}`;
-    }
-  }
-}
-
-/**
- * Create a ((THIS)) request
- * @dynamic this.METHODS
- * @method Snekfetch.((THIS)lowerCase)
- * @param {string} url The url to request
- * @param {Snekfetch.snekfetchOptions} [opts] Options
- * @returns {Snekfetch}
- */
-Snekfetch.METHODS = transport.METHODS.concat('BREW').filter((m) => m !== 'M-SEARCH');
-for (const method of Snekfetch.METHODS) {
-  Snekfetch[method.toLowerCase()] = function runMethod(url, opts) {
-    const Constructor = this.prototype instanceof Snekfetch ? this : Snekfetch;
-    return new Constructor(method, url, opts);
-  };
-}
-
-module.exports = Snekfetch;
-
-/**
- * @external Agent
- * @see {@link https://nodejs.org/api/http.html#http_class_http_agent}
- */
-
-},{"./browser":204,"./node":4,"querystring":31}],206:[function(require,module,exports){
-window.Buffer = require('buffer').Buffer;
-window.path = require('path');
-window.Discord = require('discord.js');
-window.mime = require('mime-types');
-
-if (!String.prototype.endsWith) {
-	String.prototype.endsWith = function(search, this_len) {
-		if (this_len === undefined || this_len > this.length) {
-			this_len = this.length;
-		}
-		return this.substring(this_len - search.length, this_len) === search;
-	};
-}
-
-var matchURL = /(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?/g;
-
-var loginBar = document.getElementById('login_bar');
-var messages = document.getElementById('messages');
-var channelMenu = document.getElementById('channel_menu');
-var selectServer = document.getElementById('select_server');
-var selectChannel = document.getElementById('select_channel');
-var okBtn = document.getElementById('ok_btn');
-var enterMsg = document.getElementById('enter_msg');
-var uploadBtn = document.getElementById('upload_btn');
-var sendBtn = document.getElementById('send_btn');
-
-var discordInstance;
-
-function updateLoginBar() {
-	if (localStorage.getItem('token') === null) {
-		loginBar.innerHTML = '<button type="button" onclick="promptLogin();">Login</button>';
-	} else {
-		loginBar.innerHTML = '';
-		
-		var menuIcon = document.createElement('img');
-		menuIcon.id = 'menu_icon';
-		menuIcon.src = 'mobile_menu_icon.svg';
-		menuIcon.onclick = function () {
-			openChannelMenu();
-		};
-		loginBar.appendChild(menuIcon);
-		
-		loginBar.appendChild(document.createTextNode('Logged in as '+discordInstance.user.username+' '));
-		
-		var logoutBtn = document.createElement('button');
-		logoutBtn.type = 'button';
-		logoutBtn.textContent = "Logout";
-		logoutBtn.onclick = function () {
-			discordInstance.destroy();
-		};
-		loginBar.appendChild(logoutBtn);
-	}
-}
-
-window.promptLogin = function promptLogin() {
-	var token = prompt("Enter code");
-	if (token === null) return;
-	localStorage.setItem('token', token);
-	tryLogin();
-}
-
-function tryLogin() {
-	var token = localStorage.getItem('token');
-	if (token === null) {
-		updateLoginBar();
-		return;
-	}
-	
-	discordInstance = new Discord.Client();
-	discordInstance.on('ready', function (readyEv) {
-		updateLoginBar();
-		
-		startup(readyEv);
-	});
-	discordInstance.on('disconnect', function (ev, code) {
-		localStorage.removeItem('token');
-		localStorage.removeItem('server_id');
-		localStorage.removeItem('channel_id');
-		updateLoginBar();
-		updateLatestMessages();
-		if (code === 0) {
-			tryLogin();
-		}
-	});
-	discordInstance.login(token)
-}
-
-function startup(readyEv) {
-	if (!discordInstance.channels.has(localStorage.getItem('channel_id'))) {
-		localStorage.removeItem('channel_id');
-	}
-	if (localStorage.getItem('server_id') === null || !discordInstance.guilds.has(localStorage.getItem('server_id'))) {
-		localStorage.removeItem('server_id');
-	}
-	
-	selectServer.onchange = function () {
-		localStorage.setItem('server_id', this.value);
-		localStorage.removeItem('channel_id', this.value);
-		updateSelectChannel();
-		updateLatestMessages();
-	};
-	selectChannel.onchange = function () {
-		localStorage.setItem('channel_id', this.value);
-		updateLatestMessages();
-	};
-	okBtn.onclick = function() {
-		closeChannelMenu();
-	};
-	
-	var lastInputTime = -Infinity;
-	
-	enterMsg.oninput = function () {
-		if (discordInstance && localStorage.getItem('token') !== null && localStorage.getItem('channel_id') !== null
-			&& ((new Date()).getTime() - lastInputTime) >= 1000) {
-			var channel = discordInstance.channels.get(localStorage.getItem('channel_id'));
-			channel.startTyping();
-			setTimeout(function() { channel.stopTyping(); }, 1000);
-			lastInputTime = (new Date()).getTime();
-		}
-	};
-	enterMsg.onkeypress = function (e) {
-		if (e.keyCode == 13) {
-			sendBtn.click();
-			return false;
-		}
-	};
-	
-	sendBtn.onclick = function () {
-		if (discordInstance && localStorage.getItem('token') !== null && localStorage.getItem('channel_id') !== null) {
-			discordInstance.channels
-				.get(localStorage.getItem('channel_id'))
-				.send(enterMsg.value);
-			enterMsg.value = '';
-		}
-	};
-	
-	uploadBtn.onclick = function () {
-		//alert('To nullify');
-		//try {
-		if (discordInstance && localStorage.getItem('token') !== null && localStorage.getItem('channel_id') !== null) {
-			/*
-			InstagramAssetsPicker.getMedia(
-				function (result) {
-					//alert('Un');
-					resolveLocalFileSystemURL('file://'+result.filePath, function (fileEntry) {
-						//alert('Deux');
-						fileEntry.file(function (file) {
-							//alert('Trois');
-							var reader = new FileReader();
-							reader.onloadend = function (e) {
-								//alert('Quatre');
-								//try {
-								var buf = Buffer.from(reader.result);
-								//alert('Buffer created: length = ' + buf.length);
-								var promise = discordInstance.channels.get(localStorage.getItem('channel_id')).send({
-									files: [{
-										attachment: buf,
-										name: path.basename(result.filePath)
-									}]
-								}).catch(function(err) { alert("Error: "+err.message); });
-								//} catch(err) { alert(err.message); }
-							};
-							reader.readAsArrayBuffer(file);
-						}, function(err) {  });
-					}, function(err) {  });
-				}
-			);
-			*/
-			
-			/*
-			var buf = Buffer.from('Teehee');
-			console.log(buf);
-			var promise = discordInstance.channels
-				.get(localStorage.getItem('channel_id')).send(new Discord.Attachment(buf, 'teehee_round_2.txt'))
-					.catch(function(err) { alert("Error: "+err.message); });
-			*/
-		}
-		//} catch(err) { alert(err.message); }
-	};
-	
-	updateLatestMessages()
-	.then(function () {
-		requestAnimationFrame(function () {
-			messages.scrollTop = messages.scrollHeight;
-		});
-	});
-	
-	discordInstance.on('message', function (message) {
-		appendMessage(message);
-		if (message.author.id !== discordInstance.user.id) {
-			/*
-			Notification.requestPermission(function (permission) {
-				if (permission === 'granted') {
-					var notification = new Notification(message.author.username, {
-						body: message.content
-					});
-				}
-			});
-			*/
-		}
-	});
-}
-
-setInterval(function () {
-	if (messages.scrollTop < 20 && messages.children.length) {
-		if (localStorage.getItem('channel_id') !== null) {
-			discordInstance.channels.get(localStorage.getItem('channel_id')).fetchMessages({before: messages.children[0].dataset.id})
-			.then(function (msgColl) {
-				for (var msg of msgColl.values()) {
-					prependMessage(msg);
-				}
-			});
-		}
-	}
-}, 1000);
-
-function updateSelectServer() {
-	selectServer.innerHTML = '';
-	selectServer.appendChild(document.createElement('option'));
-	selectServer.children[0].selected = 'selected';
-	selectServer.children[0].disabled = 'disabled';
-	for (var guild of discordInstance.guilds.values()) {
-		var serverOption = document.createElement('option');
-		serverOption.value = guild.id;
-		serverOption.textContent = guild.name;
-		if (guild.id === localStorage.getItem('server_id')) {
-			serverOption.selected = 'selected';
-			selectServer.children[0].removeAttribute('selected');
-		}
-		selectServer.appendChild(serverOption);
-	}
-}
-
-function updateSelectChannel() {
-	selectChannel.innerHTML = '';
-	selectChannel.appendChild(document.createElement('option'));
-	selectChannel.children[0].selected = 'selected';
-	selectChannel.children[0].disabled = 'disabled';
-	if (localStorage.getItem('server_id') !== null && discordInstance.guilds.has(localStorage.getItem('server_id'))) {
-		for (var channel of discordInstance.guilds.get(localStorage.getItem('server_id')).channels.values()) {
-			if (['text', 'dm', 'group'].indexOf(channel.type) === -1) continue;
-			
-			var channelOption = document.createElement('option');
-			channelOption.value = channel.id;
-			channelOption.textContent = channel.name;
-			if (channel.id === localStorage.getItem('channel_id')) {
-				channelOption.selected = 'selected';
-				selectChannel.children[0].removeAttribute('selected');
-			}
-			selectChannel.appendChild(channelOption);
-		}
-	}
-}
-
-function openChannelMenu() {
-	updateSelectServer();
-	
-	updateSelectChannel();
-	
-	channelMenu.style.display = '';
-}
-
-function closeChannelMenu() {
-	channelMenu.style.display = 'none';
-}
-
-function createMessageElem(message) {
-	var msgContent = document.createElement('div');
-	msgContent.classList.add('message_content');
-	
-	msgContent.dataset.id = message.id;
-	
-	msgContent.textContent = " " + message.content;
-	
-	var authorSpan = document.createElement('span');
-	authorSpan.textContent = message.author.username;
-	authorSpan.classList.add('author');
-	
-	msgContent.insertBefore(authorSpan, msgContent.childNodes[0] || null);
-	
-	matchURL.lastIndex = 0;
-	msgContent.innerHTML = msgContent.innerHTML.replace(matchURL, '<a href="$&">$&</a>')
-	
-	for (var attachment of message.attachments.values()) {
-		msgContent.appendChild(document.createElement('br'));
-		
-		var attachmentElem;
-		var contentType = mime.lookup(attachment.filename);
-		if (contentType.startsWith('image')) {
-			attachmentElem = document.createElement('img');
-			attachmentElem.src = attachment.url;
-		} else if (contentType.startsWith('video')) {
-			attachmentElem = document.createElement('video');
-			attachmentElem.src = attachment.url;
-			attachmentElem.controls = 'controls';
-		} else if (contentType.startsWith('audio')) {
-			attachmentElem = document.createElement('audio');
-			attachmentElem.src = attachment.url;
-			attachmentElem.controls = 'controls';
-		} else {
-			attachmentElem = document.createElement('a');
-			attachmentElem.href = attachment.url;
-			attachmentElem.textContent = attachment.filename;
-		}
-		if (attachmentElem) {
-			attachmentElem.classList.add('msg_media');
-			msgContent.appendChild(attachmentElem);
-		}
-	}
-	return msgContent;
-}
-
-function prependMessage(message) {
-	var msgContent = createMessageElem(message);
-	messages.insertBefore(msgContent, messages.children[0] || null);
-}
-
-function appendMessage(message) {
-	var msgContent = createMessageElem(message);
-	messages.appendChild(msgContent);
-	
-	if (message.author.id === discordInstance.user.id) {
-		requestAnimationFrame(function () { messages.scrollTop = messages.scrollHeight; });
-	}
-}
-
-function updateLatestMessages() {
-	messages.innerHTML = '';
-	messages.style.display = 'none';
-	var pr = Promise.resolve(null);
-	if (localStorage.getItem('channel_id') !== null) {
-		pr = discordInstance.channels.get(localStorage.getItem('channel_id')).fetchMessages()
-		.then(function (msgColl) {
-			for (var msg of msgColl.values()) {
-				prependMessage(msg);
-			}
-		});
-	}
-	messages.style.display = '';
-	return pr;
-}
-
-tryLogin();
-},{"buffer":7,"discord.js":153,"mime-types":209,"path":26}],207:[function(require,module,exports){
+},{"./Constants":200,"buffer":7,"snekfetch":207}],204:[function(require,module,exports){
 module.exports={
   "application/1d-interleaved-parityfec": {
     "source": "iana"
@@ -42577,7 +42279,7 @@ module.exports={
   }
 }
 
-},{}],208:[function(require,module,exports){
+},{}],205:[function(require,module,exports){
 /*!
  * mime-db
  * Copyright(c) 2014 Jonathan Ong
@@ -42590,7 +42292,7 @@ module.exports={
 
 module.exports = require('./db.json')
 
-},{"./db.json":207}],209:[function(require,module,exports){
+},{"./db.json":204}],206:[function(require,module,exports){
 /*!
  * mime-types
  * Copyright(c) 2014 Jonathan Ong
@@ -42780,4 +42482,303 @@ function populateMaps (extensions, types) {
   })
 }
 
-},{"mime-db":208,"path":26}]},{},[206]);
+},{"mime-db":205,"path":26}],207:[function(require,module,exports){
+module.exports = require('./src');
+
+},{"./src":209}],208:[function(require,module,exports){
+function buildRequest(method, url) {
+  return {
+    method,
+    path: url,
+    redirect: this.options.followRedirects ? 'follow' : 'manual',
+    headers: {},
+    setHeader(name, value) {
+      this.headers[name.toLowerCase()] = value;
+    },
+    getHeader(name) {
+      return this.headers[name.toLowerCase()];
+    },
+  };
+}
+
+function finalizeRequest() {
+  this._finalizeRequest();
+  if (this.data)
+    this.request.body = this.data;
+  return window.fetch(this.request.path, this.request)
+    .then((r) => r.text().then((t) => {
+      const headers = {};
+      for (const [k, v] of r.headers.entries())
+        headers[k.toLowerCase()] = v;
+      return { response: r, raw: t, headers };
+    }));
+}
+
+module.exports = {
+  buildRequest, finalizeRequest,
+  shouldSendRaw: () => false,
+  METHODS: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'PATCH'],
+  STATUS_CODES: {},
+  Extension: Object,
+  FormData: window.FormData,
+};
+
+},{}],209:[function(require,module,exports){
+const browser = typeof window !== 'undefined';
+const querystring = require('querystring');
+const transport = browser ? require('./browser') : require('./node');
+
+/**
+ * Snekfetch
+ * @extends Stream.Readable
+ * @extends Promise
+ */
+class Snekfetch extends transport.Extension {
+  /**
+   * Options to pass to the Snekfetch constructor
+   * @typedef {object} SnekfetchOptions
+   * @memberof Snekfetch
+   * @property {object} [headers] Headers to initialize the request with
+   * @property {object|string|Buffer} [data] Data to initialize the request with
+   * @property {string|Object} [query] Query to intialize the request with
+   * @property {boolean} [followRedirects=true] If the request should follow redirects
+   * @property {object} [qs=querystring] Querystring module to use, any object providing
+   * `stringify` and `parse` for querystrings
+   * @property {number} [version = 1] The http version to use [1 or 2]
+   * @property {external:Agent} [agent] Whether to use an http agent
+   */
+
+  /**
+   * Create a request.
+   * Usually you'll want to do `Snekfetch#method(url [, options])` instead of
+   * `new Snekfetch(method, url [, options])`
+   * @param {string} method HTTP method
+   * @param {string} url URL
+   * @param {SnekfetchOptions} [opts] Options
+   */
+  constructor(method, url, opts = {}) {
+    super();
+    this.options = Object.assign({ version: 1, qs: querystring, followRedirects: true }, opts);
+    this.request = transport.buildRequest.call(this, method, url, opts);
+    if (opts.headers)
+      this.set(opts.headers);
+    if (opts.query)
+      this.query(opts.query);
+    if (opts.data)
+      this.send(opts.data);
+  }
+
+  /**
+   * Add a query param to the request
+   * @param {string|Object} name Name of query param or object to add to query
+   * @param {string} [value] If name is a string value, this will be the value of the query param
+   * @returns {Snekfetch} This request
+   */
+  query(name, value) {
+    if (!this.request.query)
+      this.request.query = {};
+    if (name !== null && typeof name === 'object') {
+      for (const [k, v] of Object.entries(name))
+        this.query(k, v);
+    } else {
+      this.request.query[name] = value;
+    }
+
+    return this;
+  }
+
+  /**
+   * Add a header to the request
+   * @param {string|Object} name Name of query param or object to add to headers
+   * @param {string} [value] If name is a string value, this will be the value of the header
+   * @returns {Snekfetch} This request
+   */
+  set(name, value) {
+    if (name !== null && typeof name === 'object') {
+      for (const key of Object.keys(name))
+        this.set(key, name[key]);
+    } else {
+      this.request.setHeader(name, value);
+    }
+
+    return this;
+  }
+
+  /**
+   * Attach a form data object
+   * @param {string} name Name of the form attachment
+   * @param {string|Object|Buffer} data Data for the attachment
+   * @param {string} [filename] Optional filename if form attachment name needs to be overridden
+   * @returns {Snekfetch} This request
+   */
+  attach(...args) {
+    const form = this.data instanceof transport.FormData ? this.data : this.data = new transport.FormData();
+    if (typeof args[0] === 'object') {
+      for (const [k, v] of Object.entries(args[0]))
+        this.attach(k, v);
+    } else {
+      form.append(...args);
+    }
+
+    return this;
+  }
+
+  /**
+   * Send data with the request
+   * @param {string|Buffer|Object} data Data to send
+   * @returns {Snekfetch} This request
+   */
+  send(data) {
+    if (data instanceof transport.FormData || transport.shouldSendRaw(data)) {
+      this.data = data;
+    } else if (data !== null && typeof data === 'object') {
+      const header = this.request.getHeader('content-type');
+      let serialize;
+      if (header) {
+        if (header.includes('json'))
+          serialize = JSON.stringify;
+        else if (header.includes('urlencoded'))
+          serialize = this.options.qs.stringify;
+      } else {
+        this.set('Content-Type', 'application/json');
+        serialize = JSON.stringify;
+      }
+      this.data = serialize(data);
+    } else {
+      this.data = data;
+    }
+    return this;
+  }
+
+  then(resolver, rejector) {
+    if (this._response)
+      return this._response.then(resolver, rejector);
+    // eslint-disable-next-line no-return-assign
+    return this._response = transport.finalizeRequest.call(this)
+      .then(({ response, raw, redirect, headers }) => {
+        if (redirect) {
+          let method = this.request.method;
+          if ([301, 302].includes(response.statusCode)) {
+            if (method !== 'HEAD')
+              method = 'GET';
+            this.data = null;
+          } else if (response.statusCode === 303) {
+            method = 'GET';
+          }
+
+          const redirectHeaders = this.request.getHeaders();
+          delete redirectHeaders.host;
+          return new Snekfetch(method, redirect, {
+            data: this.data,
+            headers: redirectHeaders,
+            version: this.options.version,
+          });
+        }
+
+        const statusCode = response.statusCode || response.status;
+        // forgive me :(
+        const self = this; // eslint-disable-line consistent-this
+        /**
+         * Response from Snekfetch
+         * @typedef {Object} SnekfetchResponse
+         * @memberof Snekfetch
+         * @prop {HTTP.Request} request
+         * @prop {?string|object|Buffer} body Processed response body
+         * @prop {string} text Raw response body
+         * @prop {boolean} ok If the response code is >= 200 and < 300
+         * @prop {number} status HTTP status code
+         * @prop {string} statusText Human readable HTTP status
+         */
+        const res = {
+          request: this.request,
+          get body() {
+            delete res.body;
+            const type = this.headers['content-type'];
+            if (type && type.includes('application/json')) {
+              try {
+                res.body = JSON.parse(res.text);
+              } catch (err) {
+                res.body = res.text;
+              }
+            } else if (type && type.includes('application/x-www-form-urlencoded')) {
+              res.body = self.options.qs.parse(res.text);
+            } else {
+              res.body = raw;
+            }
+
+            return res.body;
+          },
+          text: raw.toString(),
+          ok: statusCode >= 200 && statusCode < 400,
+          headers: headers || response.headers,
+          status: statusCode,
+          statusText: response.statusText || transport.STATUS_CODES[response.statusCode],
+        };
+
+        if (res.ok) {
+          return res;
+        } else {
+          const err = new Error(`${res.status} ${res.statusText}`.trim());
+          Object.assign(err, res);
+          return Promise.reject(err);
+        }
+      })
+      .then(resolver, rejector);
+  }
+
+  catch(rejector) {
+    return this.then(null, rejector);
+  }
+
+  /**
+   * End the request
+   * @param {Function} [cb] Optional callback to handle the response
+   * @returns {Promise} This request
+   */
+  end(cb) {
+    return this.then(
+      (res) => cb ? cb(null, res) : res,
+      (err) => cb ? cb(err, err.status ? err : null) : Promise.reject(err)
+    );
+  }
+
+  _finalizeRequest() {
+    if (!this.request)
+      return;
+
+    if (this.request.method !== 'HEAD')
+      this.set('Accept-Encoding', 'gzip, deflate');
+    if (this.data && this.data.getBoundary)
+      this.set('Content-Type', `multipart/form-data; boundary=${this.data.getBoundary()}`);
+
+    if (this.request.query) {
+      const [path, query] = this.request.path.split('?');
+      this.request.path = `${path}?${this.options.qs.stringify(this.request.query)}${query ? `&${query}` : ''}`;
+    }
+  }
+}
+
+/**
+ * Create a ((THIS)) request
+ * @dynamic this.METHODS
+ * @method Snekfetch.((THIS)lowerCase)
+ * @param {string} url The url to request
+ * @param {Snekfetch.snekfetchOptions} [opts] Options
+ * @returns {Snekfetch}
+ */
+Snekfetch.METHODS = transport.METHODS.concat('BREW').filter((m) => m !== 'M-SEARCH');
+for (const method of Snekfetch.METHODS) {
+  Snekfetch[method.toLowerCase()] = function runMethod(url, opts) {
+    const Constructor = this.prototype instanceof Snekfetch ? this : Snekfetch;
+    return new Constructor(method, url, opts);
+  };
+}
+
+module.exports = Snekfetch;
+
+/**
+ * @external Agent
+ * @see {@link https://nodejs.org/api/http.html#http_class_http_agent}
+ */
+
+},{"./browser":208,"./node":4,"querystring":31}]},{},[52]);
