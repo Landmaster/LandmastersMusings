@@ -1,0 +1,76 @@
+html, body {
+	height: 100%;
+	margin: 0;
+}
+body, button, input, select, option {
+	font-size: 2rem;
+	font-family: Arial, sans-serif;
+}
+select {
+	background-color: #c6ffd8;
+}
+button {
+	background-color: #c6dcff;
+}
+input[type='text'] {
+	background-color: #fffec6;
+}
+#wrapper {
+	position: fixed;
+	top: 0;
+	left: 0;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+}
+#login_bar {
+	padding: 0.14rem;
+	flex: 0 1 auto;
+	text-align: right;
+}
+#message_bar {
+	padding: 0.14rem;
+	flex: 0 0 auto;
+}
+#enter_msg {
+	width: 100%;
+}
+#messages {
+	padding: 0.14rem;
+	flex: 1 1 auto;
+	background-color: #eeffff;
+	overflow: scroll;
+	overflow-x: auto;
+}
+#channel_menu {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: #ffeeff;
+}
+#menu_icon {
+	display: inline-block;
+	float: left;
+	width: 1.5em;
+}
+#ok_bar {
+	text-align: right;
+	margin: 0.14rem;
+}
+.msg_media {
+	max-width: 100%;
+}
+.author {
+	font-style: italic;
+	font-weight: bold;
+}
+.message_content {
+	margin: 0.25rem 0;
+	border-top: 0.2rem solid;
+}
+#upload_btn {
+	display: none; /* TODO change when we get uploads working */
+}

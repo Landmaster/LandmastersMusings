@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>DiscordCC</title>
+		<link rel='stylesheet' href='style.css' />
+	</head>
+	<body>
+		<div id='wrapper'>
+			<div id='login_bar'></div>
+			<div id='messages'>
+			</div>
+			<div id='message_bar'>
+				<input type='text' id='enter_msg' name='msg' /><br />
+				<button type='button' id='upload_btn'>Upload</button>
+				<button type='button' id='send_btn'>Send</button>
+			</div>
+		</div>
+		
+		<div id='channel_menu' style='display:none;'>
+			<div id='ok_bar'><button type='button' id='ok_btn'>OK</button></div>
+			Server: <select id='select_server'></select><br />
+			Channel: <select id='select_channel'></select>
+		</div>
+		
+		<!--<script src='cordova.js'></script>-->
+		
+		<script src='out.js'></script>
+	</body>
+</html>
