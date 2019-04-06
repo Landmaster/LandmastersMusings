@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>SVG to PNG</title>
+		<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+		<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+		<link rel="manifest" href="/site.webmanifest">
+		<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+		<meta name="msapplication-TileColor" content="#da532c">
+		<meta name="theme-color" content="#ffffff">
+	</head>
+	<body>
+		<div id="container">
+			<label for="file_url">File: </label><input id="file_url" type="text" name="file_url" />
+			<label for="width">Width: </label><input id="width" type="text" name="width" />
+			<label for="height">Height: </label><input id="height" type="text" name="height" />
+			<button id="output_button">Convert</button>
+		</div>
+		<canvas id="output"></canvas>
+		
+		<script>
+			let outButton = document.getElementById("output_button");
+			let canvas = document.getElementById("output");
+			outButton.addEventListener("click", () => {
+				let img = new Image();
+				img.src = document.getElementById("file_url").value;
+				canvas.width = document.getElementById("width").value;
+				canvas.height = document.getElementById("height").value;
+				let ctx = canvas.getContext('2d');
+				img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+			});
+		</script>
+	</body>
+</html>
