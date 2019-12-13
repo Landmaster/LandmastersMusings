@@ -8,9 +8,9 @@ Landmaster is an avid programmer who writes mods for Minecraft, including his si
 
 ### Some tidbits about Landmaster
 
-Landmaster participated in the USAJMO in 2016. He was a contestant in the TV show [*It's Academic*](http://www.itsacademicquizshow.com/) in 2018, playing for Urbana High School.
+Landmaster is a freshman at [Rice University](https://www.rice.edu/), studying Computer Science.
 
-He will attend [Rice University](https://www.rice.edu/) to study Computer Science in August 2019.
+He participated in the USAJMO in 2016. He was a contestant in the TV show [*It's Academic*](http://www.itsacademicquizshow.com/) from 2018-19, playing for Urbana High School.
 
 ### Contact me
 
